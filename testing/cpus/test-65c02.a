@@ -1,0 +1,6 @@
+;ACME 0.97
+	!cpu 65c02
+	!to "out-65c02.o", plain
+	*=$1000
+	!src "include-6502.a"
+	!src "include-65c02.a"

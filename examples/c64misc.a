@@ -1,0 +1,17 @@
+;ACME 0.97
+
+	*=$0801
+	!src "misc/basicstub.a"
+		jsr primm	: !pet "\renter name: ", 0
+		jsr minibuf0
+		lda #0	; terminate input
+		sta minibuf_buf, x
+		jsr primm	: !pet "\ryou entered: <", 0
+		lda #>minibuf_buf
+		ldy #<minibuf_buf
+		jsr print_string_AAYY
+		jsr primm	: !pet ">\rbye!\r", 0
+		rts
+	!src "misc/minibuf0.a"
+	!src "misc/primm.a"
+	!src "misc/print_string.a"

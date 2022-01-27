@@ -1,0 +1,86 @@
+;ACME 0.97
+
+; here's an implementation of the "double dabble" algorithm, a quick
+; and easy way to output integers as decimal digits.
+
+; in this example, the 24-bit value of the time variable TI is shown
+; on the screen as eight decimal digits, updated once per frame (every
+; once in a while there will be a glitch because the system interrupt
+; handler is not synchronized with the screen, to fix this is left as
+; an excercise to the reader).
+; the raster time used is indicated via changes of the border color.
+
+	DIGITS	= 8	; three input bytes -> 24 bits -> max 16777215 -> we need eight digits
+!addr {
+	ti_high	= $a0	; input data
+	ti_med	= $a1
+	ti_low	= $a2
+	byte	= $fb	; buffers input byte during shifts
+	out	= $0400	; where to show output digits (big-endian!)
+	raster	= $d012	; to sync with screen
+	border	= $d020	; to show raster time
+}
+	* = $0801
+	!src "misc/basicstub.a"
+---		; wait for lower border
+			lda raster
+			cmp #251
+			bne ---
+		inc border	; start "stop watch"
+		jsr dd_clear	; clear output
+		sei		; make sure TI is stable while we read it
+		lda ti_low
+		pha
+		lda ti_med
+		pha
+		lda ti_high
+		cli		; re-allow irq
+		jsr dd_process_A	; process high byte 
+		pla			; process medium byte
+		jsr dd_process_A
+		pla			; process low byte
+		jsr dd_process_A
+		jsr dd_result	; convert result from 0..9 values to '0'..'9' characters
+		dec border	; stop "stop watch"
+		jmp ---
+
+dd_clear ; clear result bytes
+		ldx #DIGITS - 1
+		lda #0
+---			sta out, x
+			dex
+			bpl ---
+		rts
+
+dd_result ; convert result bytes to ascii digits
+		ldx #DIGITS - 1
+---			lda out, x
+			ora #$30
+			sta out, x
+			dex
+			bpl ---
+		rts
+
+dd_process_A ; process eight bits
+		; use the zero-means-empty trick so we do not need a bit counter:
+		sec	; create "marker bit"
+		rol	; push into A, now C = data bit
+		sta byte	; remember for later
+		; here's how to process a bit:
+		; "out" holds digits (0..9, not '0'..'9'),
+		; but in big-endian order (for screen output).
+		; the new bit is in C:
+next_bit		ldx #DIGITS - 1	; loop over output digits
+next_digit			ldy out, x	; now Y = 0..9 (old value)
+				lda table, y	; now A = 0/1/2/3/4/128/129/130/131/132
+				rol		; now A = 0..9 (new value), bit for next digit in C
+				sta out, x	; update digit
+				dex
+				bpl next_digit
+			;clc	; only needed if overflow possible
+			rol byte	; get next data bit
+			bne next_bit
+		; byte is empty (C is 1, but that's the marker bit)
+		rts
+table
+	!by 0, 1, 2, 3, 4, $80, $81, $82, $83, $84

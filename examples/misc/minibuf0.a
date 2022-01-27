@@ -1,0 +1,92 @@
+;ACME 0.97
+; string entry with cursor, but user cannot destroy the screen.
+
+	!src <cbm/petscii.a>
+
+; some zeropage/system/kernal addresses used:
+!address {
+	z_chars_in_keybuf	= $c6
+	z_cursor_disable	= $cc	; zero means interrupt handles cursor
+	z_char_under_cursor	= $ce
+	z_cursor_is_visible	= $cf
+	z_quote_mode		= $d4
+	sys_color_under_cursor	= $0287
+	k_write_to_screen	= $ea13	; A = screencode, X = color
+	k_chrout		= $ffd2
+	k_getin			= $ffe4
+}
+
+!zone minibuf0
+
+; config:
+	.MINIBUF_MAXSIZE	= 16	; maximum length user can type
+	!addr	minibuf_buf	= $200	; where the actual buffer space is
+	; $200 is the system's input buffer.
+	; you could also use $100, that's what is used when numbers are
+	; converted to their string representations.
+
+; actual code:
+
+minibuf0 ; call this to get user input
+; on entry:	place the cursor where you want it to be
+; on exit:	X = number of characters in buffer (not terminated)
+		ldx #0	; clear buffer
+		beq @next
+		;always
+
+----			; check for DEL key
+			cpy #petscii_DEL
+			bne +
+				txa	; if cursor is at start, do nothing!
+				beq @next
+				dex	; "remove" char from buffer
+				; and now remove it from screen:
+				lda #0	; clear quote flag so LEFT works
+				sta z_quote_mode
+				lda #petscii_LEFT
+				jsr k_chrout
+				lda #' '
+				jsr k_chrout
+				lda #petscii_LEFT
+				jmp @output
++			; check for other control characters
+			tya
+			and #%.##.....
+			beq @next	; control character, so ignore
+			; printable:
+			tya	; restore byte
+; if you want to filter out unwanted characters, add your code here!
+			; try to add byte to buffer
+			cpx #.MINIBUF_MAXSIZE	; check for overrun
+			beq @next	; buffer is full, so ignore
+			; add byte to buf
+			sta minibuf_buf, x
+			inx	; fix content length
+@output			jsr k_chrout	; put on screen
+@next			; wait for key with flashing cursor
+-				lda z_chars_in_keybuf
+				sta z_cursor_disable	; disable cursor on last iteration
+				beq -
+			; if there is an artefact, remove it
+			lsr z_cursor_is_visible	; check + clear flag in one go
+			txa	; remember length
+			pha
+				bcc +
+					; restore char under cursor
+					lda z_char_under_cursor
+					ldx sys_color_under_cursor
+					jsr k_write_to_screen	; clobbers y
++				; get character
+				jsr k_getin	; returns A, clobbers X and Y
+				tay	; into Y
+			pla	; restore length
+			tax
+			; check for RETURN
+			cpy #petscii_CR
+			bne ----
+		; X holds number of characters in buffer
+; if you want the string to be terminated, add these two instructions
+; (but don't forget to make sure the buffer is large enough):
+		;lda #0
+		;sta minibuf_buf, x
+		rts

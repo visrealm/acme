@@ -1,0 +1,45 @@
+;ACME 0.97
+!set split_cache = []	; start every pass with an empty cache
+!ifdef lib_6502_split_a !eof
+lib_6502_split_a = 1
+
+!macro split_lo @args {
+	+split_putbytes 0, @args
+	!set split_cache = split_cache + @args
+}
+!macro split_hi @args {
+	+split_putbytes 8, @args
+	!set split_cache = split_cache + @args
+}
+!macro split_lo {
+	+split_putbytes 0, split_cache
+	!set split_cache = []
+}
+!macro split_hi {
+	+split_putbytes 8, split_cache
+	!set split_cache = []
+}
+!macro split_putbytes @shift, @bytes {
+	!if len(@bytes) {
+		!for @idx, 0, len(@bytes) - 1 {
+			!by (@bytes[@idx] >> @shift) & $ff
+		}
+	}
+}
+!eof
+; these macros can be used to split address tables in two separate
+; parts for high- and low-bytes. example:
+
+table_hi
+	+split_hi [$0123, $4567, $89ab, $cdef]	; writes $01, $45, $89, $cd
+	+split_hi [$1122, $3344, $5566, $7788]	; writes $11, $33, $55, $77
+table_lo
+	+split_lo	; writes $23, $67, $ab, $ef, $22, $44, $66, $88 from cache
+
+; of course you can also put the low bytes first:
+
+table_lo
+	+split_lo [$0123, $4567, $89ab, $cdef]	; writes $23, $67, $ab, $ef
+	+split_lo [$1122, $3344, $5566, $7788]	; writes $22, $44, $66, $88
+table_hi
+	+split_hi	; writes $01, $45, $89, $cd, $11, $33, $55, $77 from cache

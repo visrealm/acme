@@ -1,0 +1,22 @@
+;ACME 0.97	; comments are green
+!serious "This file is not meant to be assembled."
+
+	binary1	= %00001000	; label names are grey, constants are cyan
+	binary2	= %....#...
+	octal	= &0123456789	; bad constants are bold red
+	decimal	= 63
+	hex1	= 0xcd
+	hex2	= $ef
+!sl "labeldump.l"	; strings are cyan
+	* = $1300
+	+dings		; macro calls are bold
+	else		; keyword: bold
+	!eof		; pseudo: bold
+--			; anonymous labels should be bold (white)
+	; base 6502 mnemonics:
+		inx	; normal ones are yellow,
+		beq --	; all that break sequential flow are red
+		rts
+	; all extended instruction sets:
+		stz	; normal ones are yellow on blue
+		bra	; flow-breaking ones are red

@@ -1,0 +1,7 @@
+;ACME 0.97
+	!cpu r65c02
+	!to "out-r65c02.o", plain
+	*=$1000
+	!src "include-6502.a"
+	!src "include-65c02.a"
+	!src "include-bitmanips.a"

@@ -1,0 +1,215 @@
+;ACME 0.96.4
+
+!ifdef lib_cbm_264_ted_a !eof
+lib_cbm_264_ted_a = 1
+
+; Text Display (TED) 7360/8360
+
+; Definitions:
+; HiRes:	High resolution (320x200 pixels, two colors per 8x8 block)
+; MCM:		Multi-color mode (160x200 pixels, four colors per 4x8 block)
+; Text mode:	Pixel data is taken from charset, index/color/luminance is
+;		taken from video ram.
+; Bitmap mode:	Pixel data is taken from 8 KiB bitmap, color/luminance is taken
+;		from video ram.
+; ECM:		Extended color mode. Like HiRes text mode, but instead of 256
+;		different characters on a shared background color, 64 different
+;		characters on four different background colors are displayed.
+; MC text mode is actually a mixed mode: each character position has its own
+; bit to decide whether it is displayed in HiRes or MC.
+
+; info taken from
+;	http://mclauchlan.site.net.au/scott/C=Hacking/C-Hacking12/gfx.html	(Document Revision B)
+;	http://www.zimmers.net/anonftp/pub/cbm/maps/C16.MemoryMap
+
+; Video RAM is $0800 bytes
+; in text mode:
+;	first $0400 bytes is color/luminance info:
+;		%7.......	flash (ignored in MCM and ECM)
+;		%.654....	luminance
+;		%....3...	MCM: multicolor flag
+;		%.....210	MCM: color
+;		%....3210	HiRes and ECM: color
+;	second $0400 bytes hold screen codes:
+;		%76543210	HiRes and MCM: screen code (in HiRes, bit 7 can
+;					be configured to be "hardware reverse",
+;					see register $ff07)
+;		%76......	ECM: background color index (see registers
+;					$ff15..$ff18)
+;		%..543210	ECM: screen code
+; in bitmap mode:
+;	CAUTION!
+;	LOW nibble of luma corresponds to HIGH nibble of color and vice versa!
+;	first $0400 bytes is luminance info:
+;		%7.......	unused
+;		%.654....	luminance of %0 HiRes pixels or %01 MC pixels
+;		%....3...	unused
+;		%.....210	luminance of %1 HiRes pixels or %10 MC pixels
+;	second $0400 bytes is color info:
+;		%7654....	color of %1 pixels or %10 MC pixels
+;		%....3210	color of %0 pixels or %01 MC pixels
+
+; colors:
+tedcolor_BLACK		= $0	; ignores luminance, black is always black!
+tedcolor_WHITE		= $1	; actually gray, only max luminance gives white
+tedcolor_RED		= $2
+tedcolor_CYAN		= $3
+tedcolor_PURPLE		= $4
+tedcolor_GREEN		= $5
+tedcolor_BLUE		= $6
+tedcolor_YELLOW		= $7	; needs high luminance to look yellow...
+; these cannot be used as main color in MCM:
+tedcolor_ORANGE		= $8
+tedcolor_BROWN		= $9
+tedcolor_YELLOWGREEN	= $a
+tedcolor_PINK		= $b
+tedcolor_BLUEGREEN	= $c
+tedcolor_LIGHTBLUE	= $d
+tedcolor_DARKBLUE	= $e
+tedcolor_LIGHTGREEN	= $f
+; the color names are somewhat useless, because they refer not to the sixteen
+; base colors, but to the sixteen pre-defined luminance/color combinations
+; available by pressing the ctrl or cbm key with a digit key (see the ROM table
+; at $e143 for these combined values).
+; for a "nice" color display, use this order: 2,8,9,7,a,f,5,c,3,d,6,e,4,b,
+; that will give a red/yellow/green/blue/purple spectrum.
+; to display the whole palette, try this program:
+;	10 for i = 0 to 15:color 1, 1
+;	20 read c$:print " " c$ " ";
+;	30 poke 194, 128:for lu = 0 to 7
+;	40 color 1, dec(c$) + 1, lu
+;	50 print "   ";
+;	60 next:print:next:color 1, 1
+;	70 data 0,1,2,8,9,7,a,f
+;	80 data 5,c,3,d,6,e,4,b
+
+; TED registers
+!addr	ted_base	= $ff00
+
+; timers
+ted_timer1_lo	= ted_base + $00	; decrements from the last value written into it
+ted_timer1_hi	= ted_base + $01
+ted_timer2_lo	= ted_base + $02	; runs freely from $ffff
+ted_timer2_hi	= ted_base + $03
+ted_timer3_lo	= ted_base + $04	; runs freely from $ffff
+ted_timer3_hi	= ted_base + $05
+
+; mode bits
+ted_vertctrl	= ted_base + $06	; mostly the same as VIC's $d011
+	tedvert_TEST	= %#.......	; internal test, it should be 0
+	tedvert_EBCM	= %.#......	; extended background color mode
+	tedvert_BITMAP	= %..#.....	; bitmap mode
+	tedvert_ENABLE	= %...#....	; display enable (0: blank screen)
+	tedvert_25ROWS	= %....#...	; 0: 24 rows, 1: 25 rows
+	tedvert_SMOOTH	= %.....###	; vertical smooth scroll (std: %011, higher values move text down)
+
+ted_horzctrl	= ted_base + $07	; most similar VIC-reg is $d016
+	tedhorz_256CHRS	= %#.......	; 0: 128 characters and hardware reverse, 1: 256 characters
+	tedhorz_NTSC	= %.#......	; 0: PAL, 1: NTSC
+	tedhorz_FREEZE	= %..#.....	; if set, TED stops its counters and screen-generating, only single clock and refresh cycles remain.
+	tedhorz_MULTI	= %...#....	; multicolor mode
+	tedhorz_40COLS	= %....#...	; 0: 38 columns, 1: 40 columns
+	tedhorz_SMOOTH	= %.....###	; horizontal smooth scroll (std: %000, higher values move text right)
+
+; i/o
+ted_keyboard	= ted_base + $08	; keyboard input latch (write to trigger sampling, then read input byte)
+	; to scan keyboard, write output byte to $fd30, then write $ff here (to disable joysticks) and read input byte.
+	; to scan joysticks, write $ff to $fd30 (to disable keyboard), then write SELECT value here and read input byte.
+	tedjoy1_SELECT	= %#####.##	; d2 low selects joy #1
+	tedjoy2_SELECT	= %######.#	; d1 low selects joy #2
+	; CAUTION, the joystick bits are low-active, so invert input byte before using these:
+	tedjoy2_FIRE	= %#.......
+	tedjoy1_FIRE	= %.#......
+	tedjoy_RIGHT	= %....#...
+	tedjoy_LEFT	= %.....#..
+	tedjoy_DOWN	= %......#.
+	tedjoy_UP	= %.......#
+
+; interrupts
+ted_irq		= ted_base + $09	; interrupt request register
+	; if bit is set, interrupt has occurred.
+	; to acknowledge interrupts, write back the value read from this register
+	; (setting bits clears them, i.e. writing $82 clears ACTIVE and RASTER
+	; but does not change the COUNTER bits)
+	tedirq_ACTIVE	= %#.......	; 1: TED is signalling interrupt to cpu
+	tedirq_COUNTER3	= %.#......	; 1: counter #3 underflow
+	;		  %..#.....	; always 1 (unused)
+	tedirq_COUNTER2	= %...#....	; 1: counter #2 underflow
+	tedirq_COUNTER1	= %....#...	; 1: counter #1 underflow
+	;		  %.....#..	; always 1 (light pen, not implemented)
+	tedirq_RASTER	= %......#.	; 1: raster line reached
+	;		  %.......#	; always 1 (unused)
+
+ted_mask	= ted_base + $0a	; interrupt mask register (enable/disable)
+	; if bit is set, interrupt is enabled.
+	; use the tedirq_* constants from above.
+	;		  %#.......	; always 1 (unused)
+	;COUNTER3	= %.#......	; 1: enable counter #3 underflow interrupt
+	;		= %..#.....	; always 1 (unused)
+	;COUNTER2	= %...#....	; 1: enable counter #2 underflow interrupt
+	;COUNTER1	= %....#...	; 1: enable counter #1 underflow interrupt
+	;		= %.....#..	; always 1 (light pen, not implemented)
+	;RASTER		= %......#.	; 1: enable raster line interrupt
+	tedmask_LINEBIT8= %.......#	; bit 8 of raster line register $ff0b (see below)
+
+ted_line	= ted_base + $0b	; raster line to trigger interrupt. bit 8 is in bit 0 of $ff0a (see above)
+
+; hardware cursor, given as screen offset (0...999). use 1000 or greater to hide.
+ted_hwcursor_hi	= ted_base + $0c	; %765432.. are unused, %......10 are MSBs of hw cursor offset
+ted_hwcursor_lo	= ted_base + $0d	; hardware cursor offset (low byte)
+
+; sound
+; to calculate the register values:
+; NTSC: reg = 1024 - (111860.781 / frequency_in_Hz)
+; PAL:  reg = 1024 - (111840.45  / frequency_in_Hz)
+ted_sound1_low	= ted_base + $0e	; low 8 bits of voice #1 frequency
+ted_sound2_low	= ted_base + $0f	; low 8 bits of voice #2 frequency
+ted_sound2_hi	= ted_base + $10	; bits 7..2 are unused, bits 1..0 are the highmost 2 bits of voice #2 frequency
+ted_sound_ctrl	= ted_base + $11	; sound control register
+	tedsound_DA	= %#.......	; D/A mode (sound reload)
+	tedsound_NOISE2	= %.#......	; voice #2 noise on/off
+	tedsound_SQUARE2= %..#.....	; voice #2 square wave on/off (if you set both, the square will sound)
+	tedsound_ONOFF1	= %...#....	; voice #1 on/off
+	tedsound_VOLUME	= %....####	; volume, maximum value is 8
+
+ted_misc	= ted_base + $12	; some memory and some sound bits:
+	;		= %##......	; unused
+	tedmisc_BITMAP	= %..###...	; a15/a14/a13 of bitmap in memory
+	tedmisc_ROMCHAR	= %.....#..	; 0: charset is in RAM, 1: charset is in ROM
+	tedmisc_SOUNDMSB= %......##	; highmost bits of voice #1 frequency
+
+ted_mem		= ted_base + $13	;
+	tedmem_CHARGEN	= %######..	; high address bits of character generator
+	tedmem_SCLOCK	= %......#.	; 1: force single clock mode
+	tedmem_ROM	= %.......#	; read-only: ROM is active over $8000
+
+ted_videoram	= ted_base + $14	; bits 7..3 are the high address bits of video ram
+
+; color registers
+; %7.......	unused
+; %.654....	luminance
+; %....3210	color
+ted_background	= ted_base + $15	; color for %00 pixels (or %0 in HiRes)
+ted_color1	= ted_base + $16	; color for %01 pixels (MCM and ECM)
+ted_color2	= ted_base + $17	; color for %10 pixels (MCM and ECM)
+ted_color3	= ted_base + $18	; color for %11 pixels (MCM graphics and ECM)
+ted_border	= ted_base + $19
+
+; current character position
+ted_charpos_hi	= ted_base + $1a	; bits 1..0 are highmost bits
+ted_charpos_lo	= ted_base + $1b	; low bits of actual character position
+
+; current raster position (writable!)
+ted_vertical_hi	= ted_base + $1c	; bit 0 is msb of raster line
+ted_vertical_lo	= ted_base + $1d	; low 8 bits of raster line
+ted_horizontal	= ted_base + $1e	; horizontal position (given in double pixels)
+
+ted_count	= ted_base + $1f
+	;		= %#.......	; always 1 (unused)
+	tedcount_FLASH	= %.####...	; flashing counter
+	tedcount_CHAR	= %.....###	; raster line in character row (r/w!)
+
+; pseudo registers
+; these are not really registers inside TED, but here they are, anyway:
+!addr	ted_enable_roms	= $ff3e	; any write here enables ROMs above $8000
+!addr	ted_enable_rams	= $ff3f	; any write here enables RAM above $8000

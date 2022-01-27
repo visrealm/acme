@@ -1,0 +1,152 @@
+;ACME 0.97
+	*=$1000
+	!cpu 65816	; we need 24-bit addressing
+	!macro fitsbyte .arg {
+.b
+		lda .arg
+		!if * - .b != 2 {
+			!error "argument wasn't flagged as 'fits byte'"
+		}
+	}
+	!macro defaultsto16b .arg {
+.b
+		lda .arg
+		!if * - .b != 3 {
+			!error "argument wasn't flagged as '16 bit size'"
+		}
+	}
+	!macro defaultsto24b .arg {
+.b
+		lda .arg
+		!if * - .b != 4 {
+			!error "argument wasn't flagged as '24 bit size'"
+		}
+	}
+
+	byte = < (label&0)	; now byte should have FITS_BYTE flag
+	bigger = label & 0	; and bigger shouldn't
+	enforce8+1 = label&0	; enforce8 should enforce 8-bit addressing
+	enforce16+2 = label&0	; enforce16 should enforce 16-bit addressing
+	enforce24+3 = label&0	; enforce24 should enforce 24-bit addressing
+	; check all monadics
+	+fitsbyte byte
+	+defaultsto16b bigger
+	+fitsbyte enforce8
+	+defaultsto16b enforce16
+	+defaultsto24b enforce24
+
+	+defaultsto16b NOT byte
+	+defaultsto16b NOT bigger
+	+fitsbyte NOT enforce8
+	+defaultsto16b NOT enforce16
+	+defaultsto24b NOT enforce24
+
+	+defaultsto16b -byte
+	+defaultsto16b -bigger
+	+fitsbyte -enforce8
+	+defaultsto16b -enforce16
+	+defaultsto24b -enforce24
+
+	+fitsbyte <byte
+	+fitsbyte <bigger
+	+fitsbyte <enforce8
+	+fitsbyte <enforce16
+	+fitsbyte <enforce24
+
+	+fitsbyte >byte
+	+fitsbyte >bigger
+	+fitsbyte >enforce8
+	+fitsbyte >enforce16
+	+fitsbyte >enforce24
+
+	+fitsbyte ^byte
+	+fitsbyte ^bigger
+	+fitsbyte ^enforce8
+	+fitsbyte ^enforce16
+	+fitsbyte ^enforce24
+
+	+fitsbyte address(byte)
+	+defaultsto16b address(bigger)
+	+fitsbyte address(enforce8)
+	+defaultsto16b address(enforce16)
+	+defaultsto24b address(enforce24)
+
+	+fitsbyte int(byte)
+	+defaultsto16b int(bigger)
+	+fitsbyte int(enforce8)
+	+defaultsto16b int(enforce16)
+	+defaultsto24b int(enforce24)
+
+	+fitsbyte float(byte)
+	+defaultsto16b float(bigger)
+	+fitsbyte float(enforce8)
+	+defaultsto16b float(enforce16)
+	+defaultsto24b float(enforce24)
+
+	+defaultsto16b sin(byte)
+	+defaultsto16b sin(bigger)
+	+fitsbyte sin(enforce8)
+	+defaultsto16b sin(enforce16)
+	+defaultsto24b sin(enforce24)
+
+	+defaultsto16b cos(byte)
+	+defaultsto16b cos(bigger)
+	+fitsbyte cos(enforce8)
+	+defaultsto16b cos(enforce16)
+	+defaultsto24b cos(enforce24)
+
+	+defaultsto16b tan(byte)
+	+defaultsto16b tan(bigger)
+	+fitsbyte tan(enforce8)
+	+defaultsto16b tan(enforce16)
+	+defaultsto24b tan(enforce24)
+
+	+defaultsto16b arcsin(byte)
+	+defaultsto16b arcsin(bigger)
+	+fitsbyte arcsin(enforce8)
+	+defaultsto16b arcsin(enforce16)
+	+defaultsto24b arcsin(enforce24)
+
+	+defaultsto16b arccos(byte)
+	+defaultsto16b arccos(bigger)
+	+fitsbyte arccos(enforce8)
+	+defaultsto16b arccos(enforce16)
+	+defaultsto24b arccos(enforce24)
+
+	+defaultsto16b arctan(byte)
+	+defaultsto16b arctan(bigger)
+	+fitsbyte arctan(enforce8)
+	+defaultsto16b arctan(enforce16)
+	+defaultsto24b arctan(enforce24)
+	
+	+fitsbyte 'a'
+	+fitsbyte <label
+	+fitsbyte >label
+	+fitsbyte ^label
+	+fitsbyte label < label
+	+fitsbyte label <= label
+	+fitsbyte label > label
+	+fitsbyte label >= label
+	+fitsbyte label == label
+	+fitsbyte label != label
+	+fitsbyte enforce16 < enforce24
+	+fitsbyte enforce16 <= enforce24
+	+fitsbyte enforce16 > enforce24
+	+fitsbyte enforce16 >= enforce24
+	+fitsbyte enforce16 == enforce24
+	+fitsbyte enforce16 != enforce24
+	+fitsbyte $ff
+	+defaultsto16b $0ff
+
+	+defaultsto16b $0ff
+	+defaultsto24b $000ff
+	+fitsbyte %########
+	+defaultsto16b %.########
+	+defaultsto24b %.........########
+	+fitsbyte &377
+	+defaultsto16b &0377
+	+defaultsto24b &0000377
+	+defaultsto16b label
+	other = label
+	+defaultsto16b other
+label

@@ -1,0 +1,11 @@
+;ACME 0.97
+	!cpu c64dtv2
+	!to "out-c64dtv2.o", plain
+	*=$1000
+	!src "include-6502.a"
+C64DTV2 = 1	; make next include skip the ANC instruction (not supported by C64DTV2)
+	!src "include-undoc.a"
+; additional instructions of C64DTV2:
+		bra * + 2	; 12, branch always
+		sac #$32	; 32, set accumulator mapping
+		sir #$42	; 42, set index register mapping

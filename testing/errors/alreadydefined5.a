@@ -1,0 +1,3 @@
+;ACME 0.96.5
+	a = 3
+	a = [1, 3]	; -> "already defined" (type has changed)

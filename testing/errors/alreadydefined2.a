@@ -1,0 +1,3 @@
+;ACME 0.96.5
+	a = 3
+	a = 4	; -> "already defined" (value has changed)

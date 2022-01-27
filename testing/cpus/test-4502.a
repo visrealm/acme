@@ -1,0 +1,12 @@
+;ACME 0.97
+	!cpu 4502
+	!to "out-4502.o", plain
+	*=$1000
+	!src "include-6502.a"
+;	!src "include-65c02.a"	; not used, because 65ce02 changes "(zp)" to "(zp), z"
+	!src "include-bitmanips.a"
+	!src "include-65ce02.a"
+; this differs between 65ce02 and 4502:
+		map		; $5c
+; this is an alias for NOP:
+		eom		; $ea, "end of mapping"

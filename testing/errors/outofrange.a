@@ -1,0 +1,14 @@
+;ACME 0.97
+	*=$1000
+	; these must throw errors:
+	!by -129, 256
+	!wo -32769, 65536
+	!24 -0x800001, 16777216
+	; 32-bit values are not range checked atm:
+	!32 -0x80000001, 0x100000000
+
+	; these must work:
+	!by -128, 255
+	!wo -32768, 65535
+	!24 -0x800000, 16777215
+	!32 -0x80000000, 0xffffffff

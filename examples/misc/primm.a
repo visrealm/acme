@@ -1,0 +1,31 @@
+;ACME 0.97
+
+; zp variables
+!addr	ptr		= $fb
+
+; kernal
+!addr	k_chrout	= $ffd2
+
+; print immediate - prints zero-terminated string located directly
+; after calling JSR. returns to opcode following the terminator.
+primm		pla	; get low byte of return address - 1
+		tay	; into Y
+		pla	; get high byte of return address - 1
+		sta ptr + 1	; to ptr high
+		lda #0	; and zero ptr low, so "(ptr), y" points before text
+		sta ptr
+		beq @entry
+		;;;
+---			jsr k_chrout
+@entry			iny
+			bne +
+				; fix high byte
+				inc ptr + 1
++			lda (ptr), y
+			bne ---
+		; push updated address onto stack
+		lda ptr + 1
+		pha
+		tya
+		pha
+		rts	; return to caller (after zero-terminated text)

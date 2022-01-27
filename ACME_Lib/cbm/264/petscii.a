@@ -1,0 +1,46 @@
+;ACME 0.96.4
+
+!ifdef lib_cbm_264_petscii_a !eof
+lib_cbm_264_petscii_a = 1
+
+!source <cbm/petscii.a>
+
+; the sixteen predefined color/luma combinations available via petscii:
+petscii_BLACK		= 144	; $00	here's the actual bits given to TED
+petscii_WHITE		= 5	; $71	(first digit is luma bits,
+petscii_RED		= 28	; $32	second digit is color nibble)
+petscii_CYAN		= 159	; $63
+petscii_PURPLE		= 156	; $44
+petscii_GREEN		= 30	; $35
+petscii_BLUE		= 31	; $46
+petscii_YELLOW		= 158	; $77
+petscii_ORANGE		= 129	; $48
+petscii_BROWN		= 149	; $29
+petscii_YELLOWGREEN	= 150	; $5a
+petscii_PINK		= 151	; $6b
+petscii_BLUEGREEN	= 152	; $5c
+petscii_LIGHTBLUE	= 153	; $6d
+petscii_DARKBLUE	= 154	; $2e
+petscii_LIGHTGREEN	= 155	; $5f
+
+; switching character set (same as C64)
+petscii_LOCK		=   8	; forbid CBM-shift (C128 uses 11 instead)
+petscii_UNLOCK		=   9	; allow CBM-shift (C128 uses 12 instead)
+petscii_LOWERCASE	=  14	; switch to lowercase/uppercase character set
+petscii_UPPERCASE	= 142	; switch to uppercase/graphics character set
+
+; 264-specific stuff
+petscii_FLASHON		= 130	; (C128 uses 15 instead)
+petscii_FLASHOFF	= 131	; (C128 uses 143 instead)
+
+; function keys
+petscii_F1		= 133
+petscii_F3		= 134
+petscii_F5		= 135
+petscii_F7		= 136
+petscii_F2		= 137
+petscii_F4		= 138
+petscii_F6		= 139
+petscii_HELP		= 140	; (C128 uses 132 instead)
+
+petscii_ESCAPE		=  27

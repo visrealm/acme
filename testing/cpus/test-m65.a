@@ -1,0 +1,137 @@
+;ACME 0.97
+	!cpu m65
+	!to "out-m65.o", plain
+	*=$1000
+M65 = 1	; make next include skip the NOP mnemonic (re-used as prefix code by M65)
+	!src "include-6502.a"
+;	!src "include-65c02.a"	; not used, because 65ce02 changes "(zp)" to "(zp), z"
+	!src "include-bitmanips.a"
+	!src "include-65ce02.a"
+; this differs between 65ce02 and 4502:
+		map		; $5c
+; this is an alias for NOP:
+		eom		; $ea, "end of mapping"
+
+; "quad mode" m65 extension using NEG:NEG prefix:
+		; (instructions that are commented out might be re-purposed later)
+		;orq ($01, x)	; 01
+		orq $05		; 05
+		aslq $05	; 06
+		aslq		; 0a
+		orq $0d0e	; 0d
+		aslq $0d0e	; 0e
+		;orq ($11), y	; 11
+		orq ($12)	; 12
+		;orq $15, x	; 15
+		aslq $15, x	; 16
+		;orq $1919, y	; 19
+		inq		; 1a
+		;orq $1d1e, x	; 1d
+		aslq $1d1e, x	; 1e
+		;andq ($01, x)	; 21
+		bitq $05	; 24
+		andq $05	; 25
+		rolq $05	; 26
+		rolq		; 2a
+		bitq $0d0e	; 2c
+		andq $0d0e	; 2d
+		rolq $0d0e	; 2e
+		;andq ($11), y	; 31
+		andq ($12)	; 32
+		;bitq $15, x	; 34
+		;andq $15, x	; 35
+		rolq $15, x	; 36
+		;andq $1919, y	; 39
+		deq		; 3a
+		;bitq $1d1e, x	; 3c
+		;andq $1d1e, x	; 3d
+		rolq $1d1e, x	; 3e
+		;eorq ($01, x)	; 41
+		asrq		; 43
+		asrq $05	; 44
+		eorq $05	; 45
+		lsrq $05	; 46
+		lsrq		; 4a
+		eorq $0d0e	; 4d
+		lsrq $0d0e	; 4e
+		;eorq ($11), y	; 51
+		eorq ($12)	; 52
+		asrq $15, x	; 54
+		;eorq $15, x	; 55
+		lsrq $15, x	; 56
+		;eorq $1919, y	; 59
+		;eorq $1d1e, x	; 5d
+		lsrq $1d1e, x	; 5e
+		;adcq ($01, x)	; 61
+		adcq $05	; 65
+		rorq $05	; 66
+		rorq		; 6a
+		adcq $0d0e	; 6d
+		rorq $0d0e	; 6e
+		;adcq ($11), y	; 71
+		adcq ($12)	; 72
+		;adcq $15, x	; 75
+		rorq $15, x	; 76
+		;adcq $1919, y	; 79
+		;adcq $1d1e, x	; 7d
+		rorq $1d1e, x	; 7e
+		;stq ($01, x)	; 81
+		;stq ($82, s), y	; 82
+		stq $05		; 85
+		stq $0d0e	; 8d
+		;stq ($11), y	; 91
+		stq ($12)	; 92
+		;stq $15, x	; 95
+		;stq $1919, y	; 99
+		;stq $1d1e, x	; 9d
+		;ldq ($01, x)	; a1
+		ldq $05		; a5
+		ldq $0d0e	; ad
+		ldq ($11), y	; b1
+		ldq ($12)	; b2
+		ldq $15, x	; b5
+		ldq $1919, y	; b9
+		ldq $1d1e, x	; bd
+		;cpq ($01, x)	; c1
+		cpq $05		; c5
+		deq $05		; c6
+		cpq $0d0e	; cd
+		deq $0d0e	; ce
+		;cpq ($11), y	; d1
+		cpq ($12)	; d2
+		;cpq $15, x	; d5
+		deq $15, x	; d6
+		;cpq $1919, y	; d9
+		;cpq $1d1e, x	; dd
+		deq $1d1e, x	; de
+		;sbcq ($01, x)	; e1
+		ldq ($e2, s), y	; e2
+		sbcq $05	; e5
+		inq $05		; e6
+		sbcq $0d0e	; ed
+		inq $0d0e	; ee
+		;sbcq ($11), y	; f1
+		sbcq ($12)	; f2
+		;sbcq $15, x	; f5
+		inq $15, x	; f6
+		;sbcq $1919, y	; f9
+		;sbcq $1d1e, x	; fd
+		inq $1d1e, x	; fe
+; "long mode" m65 extension using NOP prefix:
+		ora [$12], z	; 12
+		and [$12], z	; 32
+		eor [$12], z	; 52
+		adc [$12], z	; 72
+		sta [$12], z	; 92
+		lda [$12], z	; b2
+		cmp [$12], z	; d2
+		sbc [$12], z	; f2
+; "quad mode" and "long mode" combined using NEG:NEG:NOP prefix:
+		orq [$12]	; 12
+		andq [$12]	; 32
+		eorq [$12]	; 52
+		adcq [$12]	; 72
+		stq [$12]	; 92
+		ldq [$12]	; b2
+		cpq [$12]	; d2
+		sbcq [$12]	; f2

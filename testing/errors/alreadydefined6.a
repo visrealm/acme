@@ -1,0 +1,3 @@
+;ACME 0.97
+	a = "somestring"
+	a = "someotherstring"	; -> "already defined" (value has changed)

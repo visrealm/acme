@@ -1,0 +1,13 @@
+;ACME 0.96.5
+
+!ifdef lib_m65_std_a !eof
+lib_m65_std_a = 1
+
+	; macro to load immediate constant:
+	!macro movq @v {
+		; going from lsb to msb, so at least the N flag is correct:
+		lda #<@v
+		ldx #>@v
+		ldy #^@v
+		ldz #@v >>> 24
+	}

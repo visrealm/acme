@@ -1,0 +1,118 @@
+;ACME 0.97
+	!cpu 65816
+	!to "out-65816.o", plain
+	*=$1000
+	!src "include-6502.a"
+	!src "include-65c02.a"
+;	!src "include-bitmanips.a"	65816 does not support these
+
+	; new instructions of 65816:
+		cop $02		; 02
+		ora $03, s	; 03
+		ora [$07]	; 07
+		phd		; 0b
+		ora $0f0f0f	; 0f
+		ora ($13, s), y	; 13
+		ora [$17], y	; 17
+		tcs		; 1b
+		ora $1f1f1f, x	; 1f
+		jsr $0f0f0f	; 22
+		and $03, s	; 23
+		and [$07]	; 27
+		pld		; 2b
+		and $0f0f0f	; 2f
+		and ($13, s), y	; 33
+		and [$17], y	; 37
+		tsc		; 3b
+		and $1f1f1f, x	; 3f
+		wdm		; 42
+		eor $03, s	; 43
+		mvp $44, $54	; 44
+		eor [$07]	; 47
+		phk		; 4b
+		eor $0f0f0f	; 4f
+		eor ($13, s), y	; 53
+		mvn $44, $54	; 54
+		eor [$17], y	; 57
+		tcd		; 5b
+		jmp $0f0f0f	; 5c
+		eor $1f1f1f, x	; 5f
+		per * + 3	; 62
+		adc $03, s	; 63
+		adc [$07]	; 67
+		rtl		; 6b
+		adc $0f0f0f	; 6f
+		adc ($13, s), y	; 73
+		adc [$17], y	; 77
+		tdc		; 7b
+		adc $1f1f1f, x	; 7f
+		brl * + 3	; 82
+		sta $03, s	; 83
+		sta [$07]	; 87
+		phb		; 8b
+		sta $0f0f0f	; 8f
+		sta ($13, s), y	; 93
+		sta [$17], y	; 97
+		txy		; 9b
+		sta $1f1f1f, x	; 9f
+		lda $03, s	; a3
+		lda [$07]	; a7
+		plb		; ab
+		lda $0f0f0f	; af
+		lda ($13, s), y	; b3
+		lda [$17], y	; b7
+		tyx		; bb
+		lda $1f1f1f, x	; bf
+		rep #$c2	; c2, see below
+		cmp $03, s	; c3
+		cmp [$07]	; c7
+		wai		; cb
+		cmp $0f0f0f	; cf
+		cmp ($13, s), y	; d3
+		pei ($d4)	; d4
+		cmp [$17], y	; d7
+		stp		; db
+		jmp [$dcdc]	; dc
+		cmp $1f1f1f, x	; df
+		sep #$e2	; e2, see below
+		sbc $03, s	; e3
+		sbc [$07]	; e7
+		xba		; eb
+		sbc $0f0f0f	; ef
+		sbc ($13, s), y	; f3
+		pea $f4f4	; f4
+		sbc [$17], y	; f7
+		xce		; fb
+		jsr ($fcfc, x)	; fc
+		sbc $1f1f1f, x	; ff
+
+; check sizes of immediate arguments:
+!macro immediates {
+				;	arg size depends on:
+; from 6502:
+		ora #$09	; 09	accumulator size
+		and #$09	; 29	accumulator size
+		eor #$09	; 49	accumulator size
+		adc #$09	; 69	accumulator size
+		ldy #$09	; a0	index register size
+		ldx #$09	; a2	index register size
+		lda #$09	; a9	accumulator size
+		cpy #$09	; c0	index register size
+		cmp #$09	; c9	accumulator size
+		cpx #$09	; e0	index register size
+		sbc #$09	; e9	accumulator size
+; from 65c02:
+		bit #$89	; 89	accumulator size
+; from 65816:
+		rep #$c2	; c2	always 8 bits
+		sep #$e2	; e2	always 8 bits
+}
+		; before this, all sizes were 8 bits
+		!al
+		+immediates	; now repeat immediates with long accumulator
+		!as
+		!rl
+		+immediates	; repeat immediates with short A and long index regs
+		!al
+		!rl
+		+immediates	; repeat immediates with long A and long index regs

@@ -1,0 +1,3 @@
+;ACME 0.96.5
+	li = [[9,8], 7, 3,4]
+	a = len(li)[0]	; this should give an "Operation not supported" error

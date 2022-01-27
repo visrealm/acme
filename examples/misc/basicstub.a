@@ -1,0 +1,16 @@
+;ACME 0.97
+
+	;* = $0801	; c64
+	;* = $1001	; c16/+4
+	;* = $1c01	; c128
+		!wo line2, 2021	; link pointer and line number
+		!by $9e, ' '	; "sys "
+		!by '0' + entry % 10000 / 1000
+		!by '0' + entry %  1000 /  100
+		!by '0' + entry %   100 /   10
+		!by '0' + entry %    10
+		!pet ':', $8f, " this is a comment!"	; ":rem "
+		!by 0	; line terminator
+line2		!wo 0	; program terminator
+
+entry		; the BASIC stub jumps here

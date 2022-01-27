@@ -1,0 +1,22 @@
+;ACME 0.96.4
+
+!ifdef lib_cbm_c128_vic_a !eof
+lib_cbm_c128_vic_a = 1
+
+!source <cbm/c64/vic.a>	; registers 0..2e
+
+	; registers only present in the C128 variant of this chip:
+	vic_keyboard	= vic_base + $2f
+	; %76543...	always set
+	; %.....210	output pins for extended keyboard layout
+	vic_clock	= vic_base + $30
+	; %765432.. always set
+	; %......1. "test" bit: 0 = normal, 1 = system clock changes raster line
+	; %.......0 system clock: 0 = 1 MHz, 1 = 2 MHz (VIC bus cycles will be given to CPU instead)
+
+	; the c128 ROMs contain two copies of a look-up table to convert vic color
+	; values to their corresponding petscii color codes:
+	; rom4_* needs "low rom area" enabled ($4000..$7fff)
+	; romc_* needs "high rom area" enabled ($c000..$ffff)
+!addr	rom4_vic_to_petscii_color_table	= $76b5 ; 90 05 1c 9f 9c 1e 1f 9e 81 95 96 97 98 99 9a 9b
+!addr	romc_vic_to_petscii_color_table	= $ce4c ; 90 05 1c 9f 9c 1e 1f 9e 81 95 96 97 98 99 9a 9b

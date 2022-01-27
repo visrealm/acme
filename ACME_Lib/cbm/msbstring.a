@@ -1,0 +1,20 @@
+;ACME 0.97
+
+; macro to store a petscii string with msb set in last byte
+!macro msbstring @s {
+	!ct pet {
+		@l = len(@s)
+		!if @l < 1 {
+			!error "String is empty!"
+		}
+		!for @i, 0, @l - 1 {
+			!if $80 & @s[@i] {
+				!error "String already contains character(s) with MSB set!"
+			}
+		}
+		!for @i, 0, @l - 2 {
+			!byte @s[@i]
+		}
+		!byte $80 | @s[-1]
+	}
+}

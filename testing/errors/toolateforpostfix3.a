@@ -1,0 +1,4 @@
+;ACME 0.96.5
+	a = 3
+	b = a	; read a
+	!set a+2 = 5	; -> "too late for postfix"

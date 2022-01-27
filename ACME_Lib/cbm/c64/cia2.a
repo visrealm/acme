@@ -1,0 +1,40 @@
+;ACME 0.96.4
+
+!ifdef lib_cbm_c64_cia2_a !eof
+lib_cbm_c64_cia2_a = 1
+
+!source <cbm/cia.a>	; chip stuff (same for both cias)
+; stuff for cia 2 only:
+!addr	cia2_base	= $dd00
+	cia2_pra	= cia2_base + cia_port_a
+	; %7.......	DATA in (0 means GND)
+	; %.6......	CLK in (0 means GND)
+	; %..5.....	DATA out (gets inverted, so 1 means GND)
+	; %...4....	CLK out	(gets inverted, so 1 means GND)
+	; %....3...	ATN out (gets inverted, so 1 means GND)
+	; %.....2..	PA2 (pin M at user port, 0 means GND)
+	; %......10	VIC bank (gets inverted, so value %11 means address $0000)
+	cia2_prb	= cia2_base + cia_port_b
+	; %7.......	PB7 (pin L at user port, 0 means GND)
+	; %.6......	PB6 (pin K at user port, 0 means GND)
+	; %..5.....	PB5 (pin J at user port, 0 means GND)
+	; %...4....	PB4 (pin H at user port, 0 means GND)
+	; %....3...	PB3 (pin F at user port, 0 means GND)
+	; %.....2..	PB2 (pin E at user port, 0 means GND)
+	; %......1.	PB1 (pin D at user port, 0 means GND)
+	; %.......0	PB0 (pin C at user port, 0 means GND)
+	cia2_ddra	= cia2_base + cia_data_direction_a	; kernal writes $3f
+	cia2_ddrb	= cia2_base + cia_data_direction_b	; kernal writes $00 (all input)
+	cia2_ta_lo	= cia2_base + cia_timer_a_low
+	cia2_ta_hi	= cia2_base + cia_timer_a_high
+	cia2_tb_lo	= cia2_base + cia_timer_b_low
+	cia2_tb_hi	= cia2_base + cia_timer_b_high
+	cia2_tod10ths	= cia2_base + cia_timeofday_10ths
+	cia2_todsec	= cia2_base + cia_timeofday_seconds
+	cia2_todmin	= cia2_base + cia_timeofday_minutes
+	cia2_todhr	= cia2_base + cia_timeofday_hours
+	cia2_sdr	= cia2_base + cia_serial_data
+	cia2_icr	= cia2_base + cia_interrupt_control
+	cia2_cra	= cia2_base + cia_control_a
+	cia2_crb	= cia2_base + cia_control_b
+; the interrupt output is connected to CPU's /NMI input

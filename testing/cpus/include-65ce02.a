@@ -1,0 +1,76 @@
+;ACME 0.97
+	; extensions of CMOS re-design (65c02), but with Z reg of 65ce02:
+		tsb $04		; 04
+		tsb $0c0c	; 0c
+		ora ($12), z	; 12	!
+		trb $04		; 14
+		inc		; 1a
+		trb $0c0c	; 1c
+		and ($12), z	; 32	!
+		bit $34, x	; 34
+		dec		; 3a
+		bit $3c3c, x	; 3c
+		eor ($12), z	; 52	!
+		phy		; 5a
+		stz $04		; 64
+		adc ($12), z	; 72	!
+		stz $34, x	; 74
+		ply		; 7a
+		jmp ($7c7c, x)	; 7c
+		bra * + 2	; 80
+		bit #$89	; 89
+		sta ($12), z	; 92	!
+		stz $0c0c	; 9c
+		stz $3c3c, x	; 9e
+		lda ($12), z	; b2	!
+		cmp ($12), z	; d2	!
+		phx		; da
+		sbc ($12), z	; f2	!
+		plx		; fa
+	; extensions of 65ce02:
+		cle		; 02
+		see		; 03
+		tsy		; 0b
+		lbpl * + 2	; 13
+		inz		; 1b
+		jsr ($2222)	; 22
+		jsr ($2323, x)	; 23
+		tys		; 2b
+		lbmi * + 2	; 33
+		dez		; 3b
+		neg		; 42
+		asr		; 43
+		asr $44		; 44
+		taz		; 4b
+		lbvc * + 2	; 53
+		asr $54, x	; 54
+		tab		; 5b
+;		aug		; 5c	this is different between 65ce02 and 4502
+		rtn #$62	; 62
+		bsr * + 2	; 63
+		tza		; 6b
+		lbvs * + 2	; 73
+		tba		; 7b
+		sta ($82, s), y	; 82
+		lbra * + 2	; 83
+		sty $8b8b, x	; 8b
+		lbcc * + 2	; 93
+		stx $9b9b, y	; 9b
+		ldz #$62	; a3
+		ldz $abab	; ab
+		lbcs * + 2	; b3
+		ldz $8b8b, x	; bb
+		cpz #$62	; c2
+		dew $44		; c3
+		asw $abab	; cb
+		lbne * + 2	; d3
+		cpz $44		; d4
+		phz		; db
+		cpz $abab	; dc
+		lda ($82, s), y	; e2
+		inw $44		; e3
+		row $abab	; eb
+		lbeq * + 2	; f3
+		phw #$f4f4	; f4
+		plz		; fb
+		phw $abab	; fc

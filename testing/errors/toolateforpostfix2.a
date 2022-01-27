@@ -1,0 +1,5 @@
+;ACME 0.96.5
+	*=$1000
+label
+	b = label	; read symbol
+label+2	; -> too late for postfix

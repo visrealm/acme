@@ -1,0 +1,94 @@
+;ACME 0.97
+
+!ifdef lib_cbm_multicolor_a !eof
+lib_cbm_multicolor_a = 1
+
+; this file contains macros to convert strings into bit patterns.
+; the idea is to use four different characters to indicate the four
+; different bit patterns of multicolor graphics, so mc sprites can be
+; "drawn" in the source code even though ACME does not support any
+; four-based number system. see the end of this file for an example.
+
+; macro to set "digit" characters
+; example:
+; +mc_set " .o#"
+!macro mc_set .s {
+	!if is_number(.s) or is_list(.s) {
+		!error "Argument to +mc_set must be a string."
+	} else if len(.s) != 4 {
+		!error "Argument to +mc_set must be four characters."
+	} else {
+		!set multicolor_alphabet = .s
+	}
+}
+
+; macro to convert string to number
+!macro mc_value ~.result, .in, .len {
+	!ifndef multicolor_alphabet {
+		!error "Called +mc_value before calling +mc_set."
+	} else if is_number(.in) or is_list(.in) {
+		!error "Argument to +mc_value must be a string."
+	} else if len(.in) != .len {
+		!error "Argument to +mc_value must have ", .len, " characters."
+	} else {
+		!set .result = 0
+		!for .idx, 0, (.len / 2) - 1 {
+			!set .char = .in[2 * .idx]	; get first of pair
+			!if .char != .in[2 * .idx + 1] {	; compare to second
+				!error "Characters in argument to +mc_value must be given in pairs."
+			} else {
+				!if .char = multicolor_alphabet[0] {
+					!set .result = (.result << 2)
+				} else if .char = multicolor_alphabet[1] {
+					!set .result = (.result << 2) + 1
+				} else if .char = multicolor_alphabet[2] {
+					!set .result = (.result << 2) + 2
+				} else if .char = multicolor_alphabet[3] {
+					!set .result = (.result << 2) + 3
+				} else {
+					!error "Characters in argument to +mc_value must be from alphabet set via +mc_set."
+				}
+			}
+		}
+	}
+}
+
+; macro for a multicolor byte (for charsets)
+!macro mc_8 .in {
+	+mc_value ~.result, .in, 8
+	!by .result
+}
+
+; macro for a multicolor sprite line
+!macro mc_be24 .in {
+	+mc_value ~.result, .in, 24
+	!be24 .result
+}
+
+!eof
+	; Here's an example on how to use this:
+	!to "mc-sprites.prg", cbm
+	*=$e00
+	+mc_set " .o#"	; set four characters
+	; and now use those four characters to "paint" the sprite:
+	+mc_be24 "                        "
+	+mc_be24 "..                    .."
+	+mc_be24 "....                ...."
+	+mc_be24 "......  ##....##  ......"
+	+mc_be24 "  ....................  "
+	+mc_be24 "  ....................  "
+	+mc_be24 "    ................    "
+	+mc_be24 "  ######........######  "
+	+mc_be24 "  ..oo####....####oo..  "
+	+mc_be24 "##..oo  ########  oo..##"
+	+mc_be24 "....oo  oo....oo  oo...."
+	+mc_be24 "......oooo....oooo......"
+	+mc_be24 "........................"
+	+mc_be24 "......oooo....oooo......"
+	+mc_be24 "....oooooooooooooooo...."
+	+mc_be24 "....  oooooooooooo  ...."
+	+mc_be24 "..  ####oooooooo####  .."
+	+mc_be24 "..  ######oooo######  .."
+	+mc_be24 "    ######    ####      "
+	+mc_be24 "    ######    ##        "
+	+mc_be24 "                        "

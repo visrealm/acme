@@ -1,0 +1,125 @@
+;ACME 0.97
+
+!ifdef lib_6502_rc4_a !eof
+lib_6502_rc4_a = 1
+
+; this is an implementation of the stream cipher algorithm known as RC4.
+
+; you need to define these symbols in your code:
+;	rc4_length	a single byte to hold key/chunk lengths
+;	rc4_count	a single byte (tmp var for iteration counter)
+;	rc4_ii		a single byte to hold state
+;	rc4_jj		a single byte to hold state
+;	rc4_state	a full page of memory (256 bytes)
+;	rc4_key		key buffer
+;	rc4_in		input buffer
+;	rc4_out		output buffer
+; the size of the buffers limits how much data you can pass to the functions.
+; all three buffer addresses may be identical, in that case the output will
+; overwrite the input (and/or the key).
+; functions you can then call:
+;	rc4_init	initialise state
+;	rc4_usekey_X	use key (in key buffer, length in X) to change state
+;	rc4_reset	reset ii and jj (call between keying and processing)
+;	rc4_process_X	de/encrypt data from input to output buffer (length in X)
+
+!macro rc4_code {
+	; create shorter names
+	.length	= rc4_length
+	.count	= rc4_count
+	.ii	= rc4_ii
+	.jj	= rc4_jj
+	.state	= rc4_state
+	.keybuf	= rc4_key
+	.inbuf	= rc4_in
+	.outbuf	= rc4_out
+
+; fill state vector with initial values (00..ff) and init both counters
+rc4_init
+		ldx #0
+-			txa
+			sta .state, x
+			inx
+			bne -
+		;FALLTHROUGH
+; reset state counters to zero (actually, only really needed for jj)
+rc4_reset	ldx #0
+		stx .ii
+		stx .jj
+		rts
+
+; use key (in key buffer, length in X) to change permutation in state array
+; X==0 means 256!
+rc4_usekey_X
+; X holds .ii (but we count from 0 to 255 and so do not use the real .ii at all)
+; Y holds .jj or .count (.jj is then in A)
+		stx .length
+		ldx #0
+		stx .count
+		; do 256 mixing operations
+		;.ii = 0
+		;ldx #0			;do {
+		ldy .jj
+---						;jj += state[ii] + key[count];
+			tya;lda .jj
+			clc
+			adc .state, x
+			ldy .count
+			clc
+			adc .keybuf, y
+			;sta .jj
+						;if (++count == length)
+						;	count = 0;
+			iny
+			cpy .length
+			bne +
+				ldy #0
++			sty .count
+			tay	; now Y holds .jj
+			lda .state, x		;tmp = state[ii]
+			pha
+			lda .state, y		;state[ii] = state[jj]
+			sta .state, x
+			pla			;state[jj] = tmp
+			sta .state, y
+			inx		;} while (++ii);
+			bne ---
+		sty .jj	; writeback
+		rts
+
+; de/encrypt first X bytes of input buffer to output buffer
+; X==0 means 256!
+rc4_process_X
+		stx .length
+		ldx #0
+---			stx .count
+			inc .ii			; jj += state[++ii]
+			lda .jj
+			ldx .ii
+			clc
+			adc .state, x
+			sta .jj
+			tay	; now Y holds .jj
+			lda .state, x		; tmp = state[ii];
+			pha
+			lda .state, y		; state[ii] = state[jj];
+			sta .state, x
+			pla			; state[jj] = tmp;
+			sta .state, y
+			clc			; nn = state[ii] + state[jj];
+			adc .state, x
+			tax			; buf[aktueller_offset] ^= state[nn]
+			lda .state, x
+			ldx .count
+			eor .inbuf, x
+			sta .outbuf, x
+			; all done?
+			inx
+			cpx .length
+			bne ---
+		rts
+}
+
+!macro rc4_test {
+	; TODO: add code for automated testing!
+}

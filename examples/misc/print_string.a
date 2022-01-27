@@ -1,0 +1,27 @@
+;ACME 0.97
+
+; zp variables
+!addr	ptr		= $fb
+
+; kernal
+!addr	k_chrout	= $ffd2
+
+; print zero-terminated string
+print_string_AAYY
+		sta ptr + 1	; store high byte of pointer
+		lda #0	; and clear low byte of pointer so we can use "(ptr), y"
+		sta ptr
+		beq +
+ 		;;;
+---			jsr k_chrout
+			iny
+			bne +
+				; fix high byte
+				inc ptr + 1
++			lda (ptr), y
+			bne ---
+		rts
+
+!eof
+There is also a version in the c64 basic rom (strout, $ab1e), but that one
+stops at double quotes.

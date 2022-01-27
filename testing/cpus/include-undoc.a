@@ -1,0 +1,82 @@
+;ACME 0.97
+; undocumented opcodes of NMOS 6502:
+		jam		; 02
+		slo ($03, x)	; 03
+		dop $04		; 04
+		nop $04		; 04
+		slo $04		; 07
+	!ifndef C64DTV2 {
+		anc #$0b	; 0b	(dtv does not support this)
+	}
+		top		; 0c
+		top $0c0f	; 0c
+		nop $0c0f	; 0c
+		slo $0c0f	; 0f
+		slo ($13), y	; 13
+		dop $14, x	; 14
+		nop $14, x	; 14
+		slo $14, x	; 17
+		slo $1b1b, y	; 1b
+		top $1c1f, x	; 1c
+		nop $1c1f, x	; 1c
+		slo $1c1f, x	; 1f
+		rla ($03, x)	; 23
+		rla $04		; 27
+		rla $0c0f	; 2f
+		rla ($13), y	; 33
+		rla $14, x	; 37
+		rla $1b1b, y	; 3b
+		rla $1c1f, x	; 3f
+		sre ($03, x)	; 43
+		sre $04	; 47
+		alr #$0b	; 4b
+		asr #$0b	; 4b
+		sre $0c0f	; 4f
+		sre ($13), y	; 53
+		sre $14, x	; 57
+		sre $1b1b, y	; 5b
+		sre $1c1f, x	; 5f
+		rra ($03, x)	; 63
+		rra $04	; 67
+		arr #$0b	; 6b
+		rra $0c0f	; 6f
+		rra ($13), y	; 73
+		rra $14, x	; 77
+		rra $1b1b, y	; 7b
+		rra $1c1f, x	; 7f
+		dop		; 80
+		dop #$0b	; 80
+		nop #$0b	; 80
+		sax ($03, x)	; 83
+		sax $04	; 87
+		ane #0		; 8b (anything non-zero gives a warning)
+		sax $0c0f	; 8f
+		sha ($13), y	; 93
+		sax $97, y	; 97
+		tas $1b1b, y	; 9b
+		shy $1c1f, x	; 9c
+		shx $1b1b, y	; 9e
+		sha $1b1b, y	; 9f
+		lax ($03, x)	; a3
+		lax $04	; a7
+		lxa #0		; ab (anything non-zero gives a warning)
+		lax $0c0f	; af
+		lax ($13), y	; b3
+		lax $97, y	; b7
+		las $1b1b, y	; bb
+		lax $1b1b, y	; bf
+		dcp ($03, x)	; c3
+		dcp $04	; c7
+		sbx #$0b	; cb
+		dcp $0c0f	; cf
+		dcp ($13), y	; d3
+		dcp $14, x	; d7
+		dcp $1b1b, y	; db
+		dcp $1c1f, x	; df
+		isc ($03, x)	; e3
+		isc $04	; e7
+		isc $0c0f	; ef
+		isc ($13), y	; f3
+		isc $14, x	; f7
+		isc $1b1b, y	; fb
+		isc $1c1f, x	; ff

@@ -1,0 +1,6 @@
+;ACME 0.96.4
+
+!ifdef lib_cbm_264_basic_a !eof
+lib_cbm_264_basic_a = 1
+
+!source <cbm/basic3.5.a>
