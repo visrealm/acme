@@ -8,7 +8,7 @@ Oh, and it is fast.
 
 This repository was created from the SVN source at https://sourceforge.net/projects/acme-crossass (Revision 323)
 
-## Purpose
+## Why visrealm/acme ?
 
 This fork was created to support development of the [HBC-56 Homebrew Computer](https://github.com/visrealm/hbc-56) and [vrEmu6502 6502/65C02 Emulator](https://github.com/visrealm/vrEmu6502). 
 
