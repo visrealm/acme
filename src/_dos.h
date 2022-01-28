@@ -28,6 +28,7 @@
 #define PLATFORM_SETFILETYPE_APPLE(a)
 #define PLATFORM_SETFILETYPE_CBM(a)
 #define PLATFORM_SETFILETYPE_PLAIN(a)
+#define PLATFORM_SETFILETYPE_HEX(a)
 #define PLATFORM_SETFILETYPE_TEXT(a)
 
 // platform specific message output
