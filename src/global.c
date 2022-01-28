@@ -12,6 +12,7 @@
 // 14 Apr 2020	Added config vars for "ignore zeroes" and "segment warnings to errors"
 #include "global.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include "platform.h"
 #include "acme.h"
 #include "alu.h"
@@ -392,13 +393,22 @@ int Throw_get_counter(void)
 static void throw_message(const char *message, const char *type)
 {
 	++throw_counter;
+
+	char *filename = Input_now->original_filename;
+	
+#ifdef _WINDOWS
+	char absPath[_MAX_PATH];
+	_fullpath(absPath, filename, _MAX_PATH);
+	filename = absPath;
+#endif
+
 	if (config.format_msvc)
 		fprintf(config.msg_stream, "%s(%d) : %s (%s %s): %s\n",
-			Input_now->original_filename, Input_now->line_number,
+			filename, Input_now->line_number,
 			type, section_now->type, section_now->title, message);
 	else
 		fprintf(config.msg_stream, "%s - File %s, line %d (%s %s): %s\n",
-			type, Input_now->original_filename, Input_now->line_number,
+			type, filename, Input_now->line_number,
 			section_now->type, section_now->title, message);
 }
 
