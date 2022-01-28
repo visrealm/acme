@@ -18,6 +18,23 @@ This fork was created from the SVN source at https://sourceforge.net/projects/ac
 * Added support for [Intel HEX](https://en.wikipedia.org/wiki/Intel_HEX) output format `-f hex`.
 * Output absolute filename of source file in error messages.
 
+The absolute filename output allows you to write a problemMatcher for VSCode using "absolute" fileLocation. This is necessary if you're using the `-I` command-line argument to ACME as VSCode doesn't know where the file came from. Example problemMatcher for a build task:
+
+```json
+"problemMatcher": {
+    "owner": "acme",
+    "fileLocation": [
+        "absolute"
+    ],
+    "pattern": {
+        "regexp": "([Ee]rror - File\\s+(.*), line (\\d+) (\\((Zone|Macro) .*\\))?:\\s+(.*))$",
+        "file": 2,
+        "location": 3,
+        "message": 1
+    }
+},
+```
+
 # License
 
 This code is licensed under the [GNU General Public License version 2.0 (GPLv2)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html) license
