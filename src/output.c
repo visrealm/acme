@@ -44,7 +44,6 @@ struct output {
 	intval_t	lowest_written;		// smallest address used
 	intval_t	highest_written;	// largest address used
 	boolean		initvalue_set;
-	char      fill_value;
 	struct {
 		intval_t	start;	// start of current segment (or NO_SEGMENT_START)
 		intval_t	max;	// highest address segment may use
@@ -70,19 +69,17 @@ enum output_format {
 	OUTPUT_FORMAT_UNSPECIFIED,	// default (uses "plain" actually)
 	OUTPUT_FORMAT_APPLE,		// load address, length, code
 	OUTPUT_FORMAT_CBM,		// load address, code (default for "!to" pseudo opcode)
-	OUTPUT_FORMAT_PLAIN,		// code only
-	OUTPUT_FORMAT_HEX
+	OUTPUT_FORMAT_PLAIN		// code only
 };
 // predefined stuff
 // tree to hold output formats (FIXME - a tree for three items, really?)
 static struct ronode	file_format_tree[]	= {
 	PREDEF_START,
-#define KNOWN_FORMATS	"'plain', 'cbm', 'apple', 'hex'"	// shown in CLI error message for unknown formats
+#define KNOWN_FORMATS	"'plain', 'cbm', 'apple'"	// shown in CLI error message for unknown formats
 	PREDEFNODE("apple",	OUTPUT_FORMAT_APPLE),
 	PREDEFNODE("cbm",	OUTPUT_FORMAT_CBM),
 //	PREDEFNODE("o65",	OUTPUT_FORMAT_O65),
-	PREDEFNODE("plain",	OUTPUT_FORMAT_PLAIN),
-	PREDEF_END("hex",	OUTPUT_FORMAT_HEX),
+	PREDEF_END("plain",	OUTPUT_FORMAT_PLAIN),
 	//    ^^^^ this marks the last element
 };
 // chosen file format
@@ -210,7 +207,6 @@ void output_skip(int size)
 static void fill_completely(char value)
 {
 	memset(out->buffer, value, out->bufsize);
-	out->fill_value = value;
 }
 
 
@@ -292,81 +288,9 @@ void Output_init(signed long fill_value, boolean use_large_buf)
 	}
 	// init output buffer (fill memory with initial value)
 	fill_completely(fill_value & 0xff);
-
 	// init ring list of segments
 	out->segment.list_head.next = &out->segment.list_head;
 	out->segment.list_head.prev = &out->segment.list_head;
-}
-
-// output a single line in Intel HEX format
-void outputHexChunk(int start, unsigned char  size, FILE* fd)
-{
-	int addr = start;
-	fprintf(fd, ":%02x%04x00", size,addr);
-
-	int checksum = size + (unsigned char)((addr & 0xff00)>>8) + (unsigned char)(addr & 0xff);
-	
-	for (int i = 0; i < size; ++i)
-	{
-		checksum += (unsigned char)out->buffer[start + i];
-		fprintf(fd, "%02x", (unsigned char)out->buffer[start + i]);
-	}
-
-	checksum = ~checksum + 1;
-	fprintf(fd, "%02x\n", checksum & 0xff);
-}
-
-// output to Intel HEX
-void outputHex(intval_t start, intval_t amount, FILE* fd)
-{
-	// max # of empty (fill) character before we start a new chunk
-	const int maxEmpty							 = 32;
-
-	// maximum bytes per line
-	const unsigned char maxChunkSize = 64;
-
-	out->buffer;
-
-	int chunkStart = start;
-	int emptyCount = 0;
-	int i = start;
-	for (; i < amount; ++i)
-	{
-		char c = out->buffer[i];
-		if (c == out->fill_value)
-		{
-			++emptyCount;
-			continue;
-		}
-
-		int chunkSize = i - chunkStart;
-
-		if (emptyCount > maxEmpty)
-		{
-			chunkSize -= emptyCount;
-		}
-		else
-		{
-			emptyCount = 0;
-		}
-
-		if (emptyCount || chunkSize >= maxChunkSize)
-		{
-			int bytesToWrite = chunkSize > maxChunkSize ? maxChunkSize : chunkSize;
-
-			outputHexChunk(chunkStart, bytesToWrite, fd);
-			chunkStart = i - (chunkSize - bytesToWrite);
-		}
-
-		emptyCount = 0;
-	}
-
-	unsigned char  chunkSize = i - chunkStart;
-	if (chunkSize)
-	{
-		outputHexChunk(chunkStart, chunkSize, fd);
-	}
-	fputs(":00000001ff", fd);
 }
 
 
@@ -407,10 +331,6 @@ void Output_save_file(FILE *fd)
 		// output 16-bit load address in little-endian byte order
 		putc(start & 255, fd);
 		putc(start >> 8, fd);
-	case OUTPUT_FORMAT_HEX:
-		PLATFORM_SETFILETYPE_HEX(output_filename);
-		outputHex(start, start + amount, fd);
-		return;
 	}
 	// dump output buffer to file
 	fwrite(out->buffer + start, amount, 1, fd);
