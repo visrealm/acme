@@ -333,7 +333,7 @@ void outputHex(intval_t start, intval_t amount, FILE* fd)
 	for (; i < amount; ++i)
 	{
 		char c = out->buffer[i];
-		if (c == out->fill_value)
+		if (out->fill_value && c == out->fill_value)
 		{
 			++emptyCount;
 			continue;
