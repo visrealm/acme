@@ -730,7 +730,9 @@ FILE *includepaths_open_ro(boolean uses_lib)
 			stream = fopen(pathbuf->buffer, FILE_READBINARY);
 			//printf("trying <<%s>> - ", pathbuf->buffer);
 			if (stream) {
-				//printf("ok\n");
+				DYNABUF_CLEAR(GlobalDynaBuf);
+				DynaBuf_add_string(GlobalDynaBuf, pathbuf->buffer);
+				DynaBuf_append(GlobalDynaBuf, '\0');
 				break;
 			} else {
 				//printf("failed\n");
