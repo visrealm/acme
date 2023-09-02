@@ -1,5 +1,7 @@
 # ACME Assembler
 
+![msbuild-badge](https://github.com/visrealm/acme/actions/workflows/msbuild.yml/badge.svg)
+
 ACME is a free cross assembler released under the GNU GPL.
 
 It can produce code for the following processors: 6502, 6510 (including illegal opcodes), 65c02 and 65816.
