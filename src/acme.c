@@ -115,7 +115,7 @@ static void show_help_and_exit(void)
 "  certain conditions; as outlined in the GNU General Public License.\n"
 "Dedicated to the wisest being I ever had the pleasure of reading\n"
 "  books of (currently spending some time dead for tax reasons).\n"
-"The newest version can be found at the ACME homepage:\n"
+"The newest version can be found at:\n"
 "  " HOME_PAGE "\n"
 "\n"
 "Usage:\n"

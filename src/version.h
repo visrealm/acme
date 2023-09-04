@@ -7,12 +7,12 @@
 #define version_H
 
 
-#define RELEASE		"0.97"		// update before release	FIXME
+#define RELEASE		"0.97.1"		// update before release	FIXME
 #define CODENAME	"Zem"		// update before release
-#define CHANGE_DATE	"31 Jan"	// update before release	FIXME
-#define CHANGE_YEAR	"2021"		// update before release
+#define CHANGE_DATE	"4 Sep"	// update before release	FIXME
+#define CHANGE_YEAR	"2023"		// update before release
 //#define HOME_PAGE	"http://home.pages.de/~mac_bacon/smorbrod/acme/"
-#define HOME_PAGE	"http://sourceforge.net/p/acme-crossass/"	// FIXME
+#define HOME_PAGE	"https://github.com/visrealm/acme"	// FIXME
 
 
 #endif

@@ -44,6 +44,4 @@ target_sources(acme PUBLIC
 	typesystem.h
 	version.h)
 	
-if (UNIX)
-	target_link_libraries(acme m)
-endif()
+list(APPEND CMAKE_REQUIRED_LIBRARIES m)
