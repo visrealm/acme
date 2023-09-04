@@ -18,11 +18,11 @@
 
 
 
-ID ICON "..\src\win\logo.ico"
+ID ICON "logo.ico"
 
 1 VERSIONINFO
-FILEVERSION     0, 97, 0, 0
-PRODUCTVERSION  0, 97, 0, 0
+FILEVERSION     0, 97, 1, 0
+PRODUCTVERSION  0, 97, 1, 0
 FILEFLAGSMASK   0x3fL
 FILEFLAGS       0x0L
 FILEOS          0x40004L
@@ -34,14 +34,13 @@ BEGIN
 BLOCK "040904E4"
 BEGIN
 VALUE "FileDescription", "Acme crossassembler"
-VALUE "FileVersion", "0.97.0.0"
+VALUE "FileVersion", "0.97.1.0"
 VALUE "InternalName", "ACME crossassembler"
-VALUE "LegalCopyright", "Copyright © 2022 Marco Baye"
+VALUE "LegalCopyright", "Copyright © 2023 Marco Baye"
 VALUE "OriginalFilename", "acme.exe"
 VALUE "ProductName", "ACME Crossassembler"
 VALUE "ProductVersion", "0.97 Zem"
-VALUE "PorductLicence", "GNU General Public License"
-VALUE "WindowsPort", "Dirk Hœpfner hoeppie@gmx.de"
+VALUE "ProductLicence", "GNU General Public License"
 END
 END
 BLOCK "VarFileInfo"

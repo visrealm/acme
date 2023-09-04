@@ -20,7 +20,8 @@ target_sources(acme PRIVATE
 	section.c
 	symbol.c
 	tree.c
-	typesystem.c)
+	typesystem.c
+)
 	
 target_sources(acme PUBLIC
 	acme.h
@@ -42,7 +43,15 @@ target_sources(acme PUBLIC
 	symbol.h
 	tree.h
 	typesystem.h
-	version.h)
+	version.h
+)
+	
+if (WIN32)
+target_sources(acme PUBLIC
+	win/resource.rc
+	win/resource.h
+)
+endif()
 	
 if (UNIX)
 	target_link_libraries(acme m)
