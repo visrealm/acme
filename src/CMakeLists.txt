@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.22)
 
 add_executable(acme)
 
@@ -42,3 +43,7 @@ target_sources(acme PUBLIC
 	tree.h
 	typesystem.h
 	version.h)
+	
+if (UNIX)
+	target_link_libraries(acme m)
+endif()

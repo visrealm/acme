@@ -26,6 +26,7 @@
 #define PLATFORM_SETFILETYPE_CBM(a)
 #define PLATFORM_SETFILETYPE_PLAIN(a)
 #define PLATFORM_SETFILETYPE_TEXT(a)
+#define PLATFORM_SETFILETYPE_HEX(a)
 
 // platform specific message output
 #define PLATFORM_WARNING(a)
