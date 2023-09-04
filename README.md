@@ -1,6 +1,6 @@
 # ACME Assembler
 
-![msbuild-badge](https://github.com/visrealm/acme/actions/workflows/msbuild.yml/badge.svg)
+<a href="https://github.com/visrealm/acme/actions/workflows/cmake-multi-platform.yml"><img src="https://github.com/visrealm/acme/actions/workflows/cmake-multi-platform.yml/badge.svg"/></a>
 
 ACME is a free cross assembler released under the GNU GPL.
 
