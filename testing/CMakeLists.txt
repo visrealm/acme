@@ -31,6 +31,6 @@ endforeach (cpu ${CPUS})
 set(CPUS 6502 65c02 r65c02 w65c02 nmos6502 c64dtv2 65ce02 4502 m65 65816)
 foreach (cpu ${CPUS})
 	add_test(test-hex-${cpu} ${TEST_RUNNER} -v0 -I ${TESTS_DIR} ${TESTS_DIR}test-hex-${cpu}.a)
-	add_test(cmp-test-hex-${cpu} ${CMAKE_COMMAND} -E compare_files out-${cpu}.hex ${TESTS_DIR}expected-${cpu}.hex
+	add_test(cmp-test-hex-${cpu} ${CMAKE_COMMAND} -E compare_files --ignore-eol out-${cpu}.hex ${TESTS_DIR}expected-${cpu}.hex
 	)
 endforeach (cpu ${CPUS})
