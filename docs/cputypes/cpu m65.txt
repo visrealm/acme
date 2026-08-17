@@ -8,10 +8,8 @@ file), so this file only contains information about the extensions.
 
 "quad mode" allows 32-bit data operations using a virtual register called 'Q'.
 The mnemonics aslq/lsrq/rolq/rorq/inq/deq have five addressing modes.
-The mnemonic ldq has eight addressing modes in quad mode, and a ninth when
-combined with long mode.
-The mnemonics stq/cpq/adcq/sbcq/andq/eorq/orq have three addressing modes in
-quad mode, and a fourth when combined with long mode.
+The mnemonics ldq/stq/cpq/adcq/sbcq/andq/eorq/orq have three addressing modes
+in quad mode, and a fourth when combined with long mode.
 The mnemonic bitq has two addressing modes.
 The mnemonic asrq has three addressing modes.
 This mode is entered after a NEG:NEG (42 42) prefix, the following opcode is
@@ -66,10 +64,10 @@ a0                  a1                  a2                  a3
 a4                  a5 ldq zp           a6                  a7
 a8                  a9                  aa                  ab
 ac                  ad ldq abs16        ae                  af
-b0                  b1 ldq (zp), y      b2 ldq (zp)         b3
-b4                  b5 ldq zp, x        b6                  b7
-b8                  b9 ldq abs16, y     ba                  bb
-bc                  bd ldq abs16, x     be                  bf
+b0                  b1                  b2 ldq (zp), z      b3
+b4                  b5                  b6                  b7
+b8                  b9                  ba                  bb
+bc                  bd                  be                  bf
 
 c0                  c1                  c2                  c3
 c4                  c5 cpq zp           c6 deq zp           c7
@@ -80,7 +78,7 @@ d4                  d5                  d6 deq zp, x        d7
 d8                  d9                  da                  db
 dc                  dd                  de deq abs16, x     df
 
-e0                  e1                  e2 ldq (zp, s), y   e3
+e0                  e1                  e2                  e3
 e4                  e5 sbcq zp          e6 inq zp           e7
 e8                  e9                  ea                  eb
 ec                  ed sbcq abs16       ee inq abs16        ef
@@ -107,7 +105,7 @@ mnemonics. This mode is entered after a NEG:NEG:NOP (42 42 ea) prefix, the
 following opcode should then be one of these:
 
 12 orq [zp]         32 andq [zp]        52 eorq [zp]        72 adcq [zp]
-92 stq [zp]         b2 ldq [zp]         d2 cpq [zp]         f2 sbcq [zp]
+92 stq [zp]         b2 ldq [zp], z      d2 cpq [zp]         f2 sbcq [zp]
 
 
 Because the addressing modes are changed a bit by the prefix codes, here are
@@ -116,5 +114,7 @@ some of the unsupported combinations just for comparison (these result in
 	lda (zp)	; 65c02 knew this, but 65ce02 added z index!
 	lda [zp]	; long mode also expects z index!
 	ldq #imm	; quad mode has no immediate addressing!
-	ldq (zp), z	; quad mode does not use z index!
-	ldq [zp], z	; quad and long modes combined do not use z index!
+	stq (zp), z	; quad mode only uses z index for LDQ!
+	stq [zp], z	; quad+long mode only uses z index for LDQ!
+	ldq (zp)	; LDQ uses z index!
+	ldq [zp]	; LDQ in long mode uses z index!

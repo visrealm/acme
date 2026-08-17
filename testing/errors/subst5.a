@@ -1,0 +1,3 @@
+	*=$1000
+	!set sub = 7	; sub is defined okay, but:
+base?(sub	nop	; -> "does not end with ')' character."

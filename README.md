@@ -14,10 +14,10 @@ Oh, and it is fast.
 
 ## Why visrealm/acme ?
 
-This fork was created from the SVN source at https://sourceforge.net/projects/acme-crossass (Revision 323) to support development of the [HBC-56 Homebrew Computer](https://github.com/visrealm/hbc-56) and [vrEmu6502 6502/65C02 Emulator](https://github.com/visrealm/vrEmu6502). 
+This fork was created from the SVN source at https://sourceforge.net/projects/acme-crossass (Revision 323) to support development of the [HBC-56 Homebrew Computer](https://github.com/visrealm/hbc-56) and [vrEmu6502 6502/65C02 Emulator](https://github.com/visrealm/vrEmu6502). It is currently synced to upstream **r454**.
 
 ### Improvements
-* Added support for [Intel HEX](https://en.wikipedia.org/wiki/Intel_HEX) output format `-f hex`.
+* Added support for [Intel HEX](https://en.wikipedia.org/wiki/Intel_HEX) output format `-f hex`. When `--initmem` is given, runs of the fill byte are omitted, so sparse output stays compact.
 * Output absolute filename of source file in error messages.
 
 The absolute filename output allows you to write a problemMatcher for VSCode using "absolute" fileLocation. This is necessary if you're using the `-I` command-line argument to ACME as VSCode doesn't know where the file came from. Example problemMatcher for a build task:

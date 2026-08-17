@@ -25,6 +25,8 @@ gighyp.o: config.h acme.h io.h pet2iso.h gighyp.h gighyp.c
 
 hypra.o: config.h acme.h gighyp.h io.h pet2iso.h hypra.c
 
+top.o: config.h acme.h gighyp.h io.h pet2iso.h top.c
+
 obj.o: config.h acme.h io.h mnemo.h obj.c
 
 acme.o: config.h acme.h acme.c
@@ -43,8 +45,8 @@ scr2iso.o: config.h scr2iso.h scr2iso.c
 
 version.o: config.h version.c
 
-toacme: vis.o ab.o ab3.o acme.o f8ab.o giga.o gighyp.o hypra.o io.o main.o mnemo.o obj.o pet2iso.o platform.o prof.o scr2iso.o version.o
-	$(CC) $(LIBS) $(CFLAGS) -o toacme vis.o ab.o ab3.o acme.o f8ab.o giga.o gighyp.o hypra.o io.o main.o mnemo.o obj.o pet2iso.o platform.o prof.o scr2iso.o version.o
+toacme: vis.o ab.o ab3.o acme.o f8ab.o giga.o gighyp.o hypra.o top.o io.o main.o mnemo.o obj.o pet2iso.o platform.o prof.o scr2iso.o version.o
+	$(CC) $(LIBS) $(CFLAGS) -o toacme vis.o ab.o ab3.o acme.o f8ab.o giga.o gighyp.o hypra.o top.o io.o main.o mnemo.o obj.o pet2iso.o platform.o prof.o scr2iso.o version.o
 	strip toacme
 
 clean:

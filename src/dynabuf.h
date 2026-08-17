@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2024 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // Dynamic buffer stuff
@@ -45,18 +45,28 @@ extern struct dynabuf	GlobalDynaBuf[1];	// global dynamic buffer
 
 
 // (ensure buffer is ready to use, then) clear dynamic buffer
-#define DYNABUF_CLEAR(db)	dynabuf_clear(db)	// TODO - remove old macro
 extern void dynabuf_clear(struct dynabuf *db);
-// call whenever buffer is too small
+
+// this gets called by "APPEND" macro whenever buffer is too small
 extern void dynabuf_enlarge(struct dynabuf *db);
+
 // return malloc'd copy of buffer contents
-extern char *DynaBuf_get_copy(struct dynabuf *db);
-// copy string to buffer (without terminator)
-extern void DynaBuf_add_string(struct dynabuf *db, const char *);
-// converts buffer contents to lower case
-extern void DynaBuf_to_lower(struct dynabuf *target, struct dynabuf *source);
-// add char to buffer
-extern void DynaBuf_append(struct dynabuf *db, char);
+extern char *dynabuf_get_copy(struct dynabuf *db);
+
+// add string to buffer (terminator is added, but not included in "size"!)
+extern void dynabuf_add_string(struct dynabuf *db, const char *str);
+
+// add byte sequence to buffer
+extern void dynabuf_add_bytes(struct dynabuf *db, const char *src, size_t size);
+
+// add long integer as decimal number to buffer
+extern void dynabuf_add_signed_long(struct dynabuf *db, signed long number);
+
+// convert buffer contents to lower case
+extern void dynabuf_to_lower(struct dynabuf *target, struct dynabuf *source);
+
+// append char to buffer
+extern void dynabuf_append(struct dynabuf *db, char);
 
 
 #endif

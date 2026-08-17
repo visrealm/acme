@@ -1,0 +1,13 @@
+;ACME 0.97
+
+	!ifndef VAR {
+		!info "undefined"
+	} else if VAR == 1 {	; <- "Value not defined"
+		!info "is 1"
+	}
+; previous versions of ACME complained about the second block's condition not
+; being defined. but obviously the first block's condition was added to solve
+; exactly this problem, so ACME should not generate an error in this case.
+
+; now, as soon as one block has been executed, the conditions of all following
+; blocks are ignored just like the blocks themselves.

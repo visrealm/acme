@@ -1,0 +1,19 @@
+;ACME 0.97
+	*=$1000
+	; make sure branches work for +127 and -128 distances:
+		beq base1 - 128
+base1
+		beq base2 + 127
+base2
+
+	!cpu r65c02
+		bbs0 $ab, base3 - 128
+base3
+		bbr7 $cd, base4 + 127
+base4
+
+	; make sure branches work between first page and last page:
+	*=$10
+		beq $fff0
+	*=$fff0
+		beq $10

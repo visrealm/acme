@@ -1,0 +1,9 @@
+	*=$1000
+	!pseudopc $0300 {
+label1		nop
+	label2 = label1 + 1
+	dummy = $0500
+	}
+	;test = &label1	; this works
+	;test = &label2	; this also works
+	err = &dummy	; -> "Un-pseudopc operator '&' only works on addresses."

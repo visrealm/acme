@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2025 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // symbol stuff
@@ -9,7 +9,7 @@
 // 23 Nov 2014	Added label output in VICE format
 #include "symbol.h"
 #include <stdio.h>
-#include "acme.h"
+#include <string.h>	// for memcpy()
 #include "alu.h"
 #include "dynabuf.h"
 #include "global.h"
@@ -60,7 +60,7 @@ static void dump_one_symbol(struct rwnode *node, FILE *fd)
 	else if (symbol->object.u.number.ntype == NUMTYPE_FLOAT)
 		fprintf(fd, "%.30f", symbol->object.u.number.val.fpval);	//FIXME %g
 	else
-		Bug_found("IllegalNumberType4", symbol->object.u.number.ntype);
+		BUG("IllegalNumberType4", symbol->object.u.number.ntype);
 	if (symbol->object.u.number.flags & NUMBER_EVER_UNDEFINED)
 		fprintf(fd, "\t; ?");	// TODO - write "forward" instead?
 	if (!symbol->has_been_read)
@@ -112,7 +112,7 @@ struct symbol *symbol_find(scope_t scope)
 	struct symbol	*symbol;
 	boolean		node_created;
 
-	node_created = Tree_hard_scan(&node, symbols_forest, scope, TRUE);
+	node_created = tree_hard_scan(&node, symbols_forest, scope, TRUE);
 	// if node has just been created, create symbol as well
 	if (node_created) {
 		// create new symbol structure
@@ -120,10 +120,14 @@ struct symbol *symbol_find(scope_t scope)
 		node->body = symbol;
 		// finish empty symbol item
 		symbol->object.type = NULL;	// no object yet (CAUTION!)
-		symbol->pass = pass.number;
 		symbol->has_been_read = FALSE;
 		symbol->has_been_reported = FALSE;
 		symbol->pseudopc = NULL;
+		// we must set "definition" fields to dummy data, because the object
+		// has been created, but not necessarily set to a defined value:
+		symbol->definition.plat_filename = NULL;
+		symbol->definition.line_number = 0;
+		symbol->pass_number = pass.number;
 	} else {
 		symbol = node->body;
 	}
@@ -143,31 +147,59 @@ struct symbol *symbol_find(scope_t scope)
 //	CAUTION: actual incrementing of counter is then done directly without calls here!
 void symbol_set_object(struct symbol *symbol, struct object *new_value, bits powers)
 {
-	// if symbol has no object assigned to it yet, fine:
+	boolean	redefined;
+
 	if (symbol->object.type == NULL) {
+		// symbol has no object assigned to it yet
 		symbol->object = *new_value;	// copy whole struct including type
 		// as long as the symbol has not been read, the force bits can
 		// be changed, so the caller still has a chance to do that.
-		return;
+	} else {
+		// symbol already has an object
+
+		// compare types
+		// if too different, needs power (or complains)
+		if (symbol->object.type != new_value->type) {
+			if (!(powers & POWER_CHANGE_OBJTYPE)) {
+				throw_redef_error(exception_symbol_defined, &symbol->definition, "Previous definition.");
+/* FIXME - this goes wrong if a forward reference is assumed to be an int and
+	later defined to be a string! the call above will not show the previous
+	definition, because there isn't one.
+	improve error output in these cases!
+*/
+			}
+			// CAUTION: if line above triggers, we still go ahead and change type!
+			// this is to keep "!for" working, where the counter var is accessed.
+			symbol->object = *new_value;	// copy whole struct including type
+			// clear flag so caller can adjust force bits:
+			symbol->has_been_read = FALSE;	// it's basically a new symbol now
+		} else {
+			// symbol and new value have compatible types, so call handler:
+			redefined = symbol->object.type->assign(&symbol->object, new_value, !!(powers & POWER_CHANGE_VALUE));
+			if (redefined) {
+				// do we accept re-definitions without "!set"?
+				if (config.dialect >= V0_98__PATHS_AND_SYMBOLCHANGE) {
+					// since version 0.98 new passes can assign new values:
+					if (symbol->pass_number != pass.number) {
+						++pass.counters.symbolchanges;
+					} else {
+						throw_redef_error(exception_symbol_defined, &symbol->definition, "Previous definition.");
+					}
+				} else {
+					// older versions complained about _all_ re-definitions:
+					throw_redef_error(exception_symbol_defined, &symbol->definition, "Previous definition.");
+				}
+			}
+		}
 	}
-
-	// now we know symbol already has a type
-
-	// compare types
-	// if too different, needs power (or complains)
-	if (symbol->object.type != new_value->type) {
-		if (!(powers & POWER_CHANGE_OBJTYPE))
-			Throw_error(exception_symbol_defined);
-		// CAUTION: if above line throws error, we still go ahead and change type!
-		// this is to keep "!for" working, where the counter var is accessed.
-		symbol->object = *new_value;	// copy whole struct including type
-		// clear flag so caller can adjust force bits:
-		symbol->has_been_read = FALSE;	// it's basically a new symbol now
-		return;
+	// if symbol is an address, give it a pseudopc context:
+	if ((symbol->object.type == &type_number)
+	&& (symbol->object.u.number.addr_refs == 1)) {
+		symbol->pseudopc = pseudopc_get_context();
 	}
-
-	// now we know symbol and new value have compatible types, so call handler:
-	symbol->object.type->assign(&symbol->object, new_value, !!(powers & POWER_CHANGE_VALUE));
+	// remember current location and pass number for "symbol twice" errors in future:
+	input_get_location(&symbol->definition);
+	symbol->pass_number = pass.number;
 }
 
 
@@ -175,12 +207,12 @@ void symbol_set_object(struct symbol *symbol, struct object *new_value, bits pow
 void symbol_set_force_bit(struct symbol *symbol, bits force_bit)
 {
 	if (!force_bit)
-		Bug_found("ForceBitZero", 0);
+		BUG("ForceBitZero", 0);
 	if (symbol->object.type == NULL)
-		Bug_found("NullTypeObject", 0);
+		BUG("NullTypeObject", 0);
 
 	if (symbol->object.type != &type_number) {
-		Throw_error("Force bits can only be given to numbers.");
+		throw_error("Force bits can only be given to numbers.");
 		return;
 	}
 
@@ -193,30 +225,44 @@ void symbol_set_force_bit(struct symbol *symbol, bits force_bit)
 
 	// it's too late to change, so check if the wanted bit is actually different
 	if ((symbol->object.u.number.flags & NUMBER_FORCEBITS) != force_bit)
-		Throw_error("Too late for postfix.");
+		throw_error("Too late for postfix.");
 }
 
 
-// set global symbol to integer value, no questions asked (for "-D" switch)
-// Name must be held in GlobalDynaBuf.
-void symbol_define(intval_t value)
+// create and return symbol for "-D" command line switch (with NULL type object, CAUTION!).
+// name must be held in GlobalDynaBuf
+extern struct symbol *symbol_for_cli_def(void)
 {
-	struct object	result;
 	struct symbol	*symbol;
 
-	result.type = &type_number;
-	result.u.number.ntype = NUMTYPE_INT;
-	result.u.number.flags = 0;
-	result.u.number.val.intval = value;
 	symbol = symbol_find(SCOPE_GLOBAL);
-	symbol->object = result;
+	symbol->definition.plat_filename = "\"-D SYMBOL=VALUE\"";
+	symbol->definition.line_number = 1;
+	return symbol;
+}
+// set symbol to integer value, no questions asked (for "-D" switch)
+// FIXME - remove and call int_create_byte instead?
+void symbol_define_int(struct symbol *symbol, intval_t value)
+{
+	symbol->object.type = &type_number;
+	symbol->object.u.number.ntype = NUMTYPE_INT;
+	symbol->object.u.number.flags = 0;
+	symbol->object.u.number.val.intval = value;
+	symbol->object.u.number.addr_refs = 0;
+}
+// set symbol to string value, no questions asked (for "-D" switch)
+// string value must be held in GlobalDynaBuf
+void symbol_define_string(struct symbol *symbol)
+{
+	string_prepare_string(&symbol->object, GlobalDynaBuf->size);
+	memcpy(symbol->object.u.string->payload, GLOBALDYNABUF_CURRENT, GlobalDynaBuf->size);
 }
 
 
 // dump global symbols to file
 void symbols_list(FILE *fd)
 {
-	Tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_one_symbol, fd);
+	tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_one_symbol, fd);
 }
 
 
@@ -225,13 +271,13 @@ void symbols_vicelabels(FILE *fd)
 	// FIXME - if type checking is enabled, maybe only output addresses?
 	// the order of dumped labels is important because VICE will prefer later defined labels
 	// dump unused labels
-	Tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_unusednonaddress, fd);
+	tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_unusednonaddress, fd);
 	fputc('\n', fd);
 	// dump other used labels
-	Tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_usednonaddress, fd);
+	tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_usednonaddress, fd);
 	fputc('\n', fd);
 	// dump address symbols
-	Tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_address, fd);
+	tree_dump_forest(symbols_forest, SCOPE_GLOBAL, dump_vice_address, fd);
 	// TODO - add trace points and watch points with load/store/exec args!
 }
 
@@ -252,7 +298,7 @@ void symbol_fix_forward_anon_name(boolean increment)
 	unsigned long	number;
 
 	// terminate name, find "counter" symbol and read value
-	DynaBuf_append(GlobalDynaBuf, '\0');
+	dynabuf_append(GlobalDynaBuf, '\0');
 	counter_symbol = symbol_find(section_now->local_scope);
 	if (counter_symbol->object.type == NULL) {
 		// finish freshly created symbol item
@@ -263,21 +309,22 @@ void symbol_fix_forward_anon_name(boolean increment)
 		counter_symbol->object.u.number.val.intval = 0;
 	} else if (counter_symbol->object.type != &type_number) {
 		// sanity check: it must be a number!
-		Bug_found("ForwardAnonCounterNotInt", 0);
+		BUG("ForwardAnonCounterNotInt", 0);
 	}
 	// make sure it gets reset to zero in each new pass
-	if (counter_symbol->pass != pass.number) {
-		counter_symbol->pass = pass.number;
+	if (counter_symbol->pass_number != pass.number) {
+		counter_symbol->pass_number = pass.number;
 		counter_symbol->object.u.number.val.intval = 0;
 	}
+	// now use value
 	number = (unsigned long) counter_symbol->object.u.number.val.intval;
+	if (increment)
+		counter_symbol->object.u.number.val.intval++;
 	// now append to the name to make it unique
 	GlobalDynaBuf->size--;	// forget terminator, we want to append
 	do {
 		DYNABUF_APPEND(GlobalDynaBuf, 'a' + (number & 15));
 		number >>= 4;
 	} while (number);
-	DynaBuf_append(GlobalDynaBuf, '\0');
-	if (increment)
-		counter_symbol->object.u.number.val.intval++;
+	dynabuf_append(GlobalDynaBuf, '\0');
 }

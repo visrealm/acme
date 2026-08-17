@@ -1,0 +1,7 @@
+	; double-quotes indicate strings in 0.97:
+	a = "a" + 10
+	; backslash becomes escape char in 0.97:
+	b = "\"
+	c = '\'
+
+	!src "dialect097.a"

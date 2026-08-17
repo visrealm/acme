@@ -1,0 +1,2 @@
+	*=$1000
+	!sl 4.5	; -> "Expression did not return a string."

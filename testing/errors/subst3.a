@@ -1,0 +1,3 @@
+	*=$1000
+		lda sub	; sub is undefined
+base?sub	nop	; -> "undefined or not integer"

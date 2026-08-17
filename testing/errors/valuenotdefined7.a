@@ -1,0 +1,2 @@
+undef=*	; -> "Symbol not defined(*)."
+	*=$1000	

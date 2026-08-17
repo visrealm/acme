@@ -1,0 +1,3 @@
+	!cpu nmos6502
+	*=$1000
+		ane #$ff	; -> "Assembling unstable ANE #NONZERO instruction."

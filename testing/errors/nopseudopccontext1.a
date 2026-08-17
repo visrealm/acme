@@ -1,2 +1,3 @@
-;ACME 0.96.5
-	a = &c
+	*=$1000
+label		nop
+	a = &label	; -> "Un-pseudopc operator '&' has no !pseudopc context."

@@ -1,0 +1,2 @@
+	primes = [2,3,5]
+	a = &primes	; -> "Un-pseudopc operator '&' can only be applied to number symbols."

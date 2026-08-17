@@ -82,7 +82,21 @@ method obviously is not a good example on structured programming. :)
 Section:   Miscellaneous
 ----------------------------------------------------------------------
 
-Note that ACME cannot produce more than 64 KBytes of code. Also note
-that though the 65816 CPU has an address space of 16 MB, ACME's
-program counter is only sixteen bits wide. It shouldn't be too hard to
-make any assembled code run in a non-zero bank, though.
+The 65816 CPU has an address space of 16 MBytes, but that is still
+split up into 256 "banks" of 64 KBytes each: A simple "JMP $1234"
+instruction does not necessarily jump to $001234, it rather jumps to
+address $1234 _in_the_bank_where_the_code_is_currently_running_.
+Therefore, it does not make sense to use 24-bit values for most
+labels. On the other hand, when jumping between banks, you need the
+full 24-bit address.
+One solution for this problem would be something like this:
+
+	; this code is supposed to run at $1000 in bank 2:
+	* = $021000	; we use the correct 24-bit address, but we
+	!pseudopc * & $ffff {	; restrict the pc to 16 bits
+start		lda some_var	; now "start" is $1000
+		beq some_label
+		...
+	}
+This way, referencing "start" will give you the 16-bit value ($1000),
+but referencing "&start" will give the full 24-bit value ($021000).

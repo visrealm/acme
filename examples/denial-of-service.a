@@ -1,0 +1,48 @@
+;ACME 0.97
+
+; "denial of service", first try:
+
+	; this macro calls itself ten times with a decreased "depth" value.
+	; because each macro call gets its own symbols, this takes not only
+	; time, but also a lot of memory:
+	!macro dos @depth {
+		!if @depth > 0 {
+			!for @i, 0, 9 {
+				+dos @depth - 1
+			}
+		}
+	}
+
+;	+dos 0	; returns immediately
+;	+dos 1	; returns immediately
+;	+dos 2	; returns immediately
+;	+dos 3	; returns immediately
+;	+dos 4	; returns immediately
+;	+dos 5	; takes <1s
+;	+dos 6	; takes a few seconds
+;	+dos 7	; may take 30 minutes...
+;	+dos 8	; don't do this
+
+
+; "denial of service", second try:
+
+	; this uses global symbols and therefore only takes time:
+	!macro dos2 {
+		!if depth > 0 {
+			!set depth = depth - 1
+			+dos2 : +dos2 : +dos2 : +dos2 : +dos2
+			+dos2 : +dos2 : +dos2 : +dos2 : +dos2
+			!set depth = depth + 1
+		}
+	}
+
+	; depths 0..4 return immediately,
+	; 5 takes .2s
+	; 6 takes 2s
+	; 7 takes 20s
+	; 8 takes about 3 minutes
+	; 9 may take 30 minutes...
+	; etc. pp.
+	!set depth = 8
+	+dos2
+

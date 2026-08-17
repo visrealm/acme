@@ -1,0 +1,2 @@
+	!to "dummy.o", cbm
+	!to "dummy.o", cbm	; -> "Output file name already chosen."

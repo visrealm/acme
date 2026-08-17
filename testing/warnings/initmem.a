@@ -1,0 +1,2 @@
+	!initmem 0
+	!initmem 0	; -> "Memory already initialised."

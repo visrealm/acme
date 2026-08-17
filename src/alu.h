@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2024 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // ALU stuff (the expression parser)
@@ -16,7 +16,7 @@ struct type {
 	const char	*name;
 	boolean		(*is_defined)(const struct object *self);
 	boolean		(*differs)(const struct object *self, const struct object *other);
-	void		(*assign)(struct object *self, const struct object *new_value, boolean accept_change);
+	boolean		(*assign)(struct object *self, const struct object *new_value, boolean accept_change);
 	void		(*monadic_op)(struct object *self, const struct op *op);
 	void		(*dyadic_op)(struct object *self, const struct op *op, struct object *other);
 	void		(*fix_result)(struct object *self);
@@ -52,6 +52,13 @@ struct expression {
 	// labels that are undefined, we can't simply get the addressing mode
 	// from looking at the parameter's value.	FIXME - rename to TAINTED :)
 
+
+// prototypes
+
+// make new string object
+// (exported because symbol.c calls this for strings given on command line)
+extern void string_prepare_string(struct object *self, int len);
+
 /*
 // FIXME - replace all the functions below with a single one using a "flags" arg!
 // its return value would then be "error"/"ok".
@@ -67,11 +74,14 @@ struct expression {
 
 // stores int value (0 if result was undefined)
 extern void ALU_any_int(intval_t *target);
+
 // stores int value and flags (floats are transformed to int)
 // if result was undefined, serious error is thrown
 extern void ALU_defined_int(struct number *intresult);
+
 // stores int value and flags, allowing for "paren" '(' too many (x-indirect addr).
 extern void ALU_addrmode_int(struct expression *expression, int paren);
+
 // stores resulting object
 extern void ALU_any_result(struct object *result);
 

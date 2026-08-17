@@ -83,7 +83,6 @@ Section:   What it can and does
 ACME is a crossassembler.
 ACME can produce code for the 6502, 65c02 and 65816 processors.
 It does this *fast*.
-It can produce at most 64 KBytes of code.
 You can use global labels, local labels and anonymous labels.
 It is fast.
 You can use global and local macros.
@@ -120,7 +119,6 @@ Section:   What it can't and doesn't
 
 ACME cannot transfer data to a C64 or another computer.
 ACME does not produce ".o65"-format linkable object files.
-ACME cannot produce more than 64 KB (would be useful for the 65816).
 ACME cannot disassemble or relocate given code files.
 
 

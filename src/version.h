@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2021 Marco Baye
+// Copyright (C) 1998-2026 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // version info
@@ -9,8 +9,8 @@
 
 #define RELEASE		"0.97.1"		// update before release	FIXME
 #define CODENAME	"Zem"		// update before release
-#define CHANGE_DATE	"4 Sep"	// update before release	FIXME
-#define CHANGE_YEAR	"2023"		// update before release
+#define CHANGE_DATE	"1 May"	// update before release	FIXME
+#define CHANGE_YEAR	"2026"		// update before release
 //#define HOME_PAGE	"http://home.pages.de/~mac_bacon/smorbrod/acme/"
 #define HOME_PAGE	"https://github.com/visrealm/acme"	// FIXME
 

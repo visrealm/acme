@@ -1,15 +1,14 @@
 // ToACME - converts other source codes to ACME format.
-// Copyright (C) 1999-2019 Marco Baye
+// Copyright (C) 1999-2025 Marco Baye
 // Have a look at "main.c" for further info
 //
 // Version
 
-#define RELEASE_NUMBER	"0.15"		// change before release (FIXME)
-#define CHANGE_DATE	"25 Apr"		// change before release
-#define CHANGE_YEAR	"2019"		// change before release
+#define RELEASE_NUMBER	"0.19"		// change before release (FIXME)
+#define CHANGE_DATE	"26 Jan"	// change before release
+#define CHANGE_YEAR	"2025"		// change before release
 #define HOME_PAGE	"http://sourceforge.net/projects/acme-crossass/"
-//			"http://home.pages.de/~mac_bacon/smorbrod/acme/"
-#define FILE_TAG	";ACME 0.96.4"	// check before release
+#define FILE_TAG	";ACME 0.97"	// check before release
 
 #include <stdio.h>
 #include <string.h>
@@ -34,6 +33,7 @@ PLATFORM_VERSION "\n"
 "Thanks to Andreas Paul for helping with the Giga-Assembler mode.\n"
 "Thanks to Arndt Dettke for helping with the Hypra-Assembler mode.\n"
 "Thanks to Hoogo for helping with the Professional Assembler mode.\n"
+"Thanks to Sven Friedrichs for writing the Top-Assembler mode.\n"
 "\n"
 "The newest version can be found at the ACME homepage:\n"
 HOME_PAGE "\n"
@@ -53,6 +53,7 @@ HOME_PAGE "\n"
 "ab3         C64: AssBlaster 3.0 to 3.2        good\n"
 "f8ab        C64: Flash8-AssBlaster              ok\n"
 "prof        C64: Professional Assembler       poor (work in progress)\n"
+"top         C128: Top-Assembler                 ok\n"
 "\n"
 	, program_name);
 }
@@ -65,6 +66,7 @@ extern void giga_main(void);
 extern void hypra_main(void);
 extern void obj_main(void);
 extern void prof_main(void);
+extern void top_main(void);
 
 
 // check id string. returns whether illegal.
@@ -84,6 +86,8 @@ int version_parse_id(const char id[])
 		client_main = obj_main;
 	else if (strcmp(id, "prof") == 0)
 		client_main = prof_main;
+	else if (strcmp(id, "top") == 0)
+		client_main = top_main;
 	return client_main ? 0 : 1;
 }
 

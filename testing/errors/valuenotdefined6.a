@@ -1,0 +1,4 @@
+	*=$1000
+	jmp --	; -> "Symbol not defined."
+-- ; older versions had a bug where the last value set in a pass survived to the next pass
+	jmp --

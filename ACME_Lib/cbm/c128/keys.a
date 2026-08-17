@@ -1,0 +1,54 @@
+;ACME 0.97
+
+!ifdef lib_cbm_c128_keys_a !eof
+lib_cbm_c128_keys_a = 1
+
+;           bit in $dc01:
+;   7   6   5   4   3   2   1   0
+;(Joy1:       BUT RGHT LFT DWN UP)
+;                                   | c64 keys:
+;                                   | bit in $dc00:
+;                                   |     (Joy2:)
+;  DOWN F5  F3  F1  F7 RGHT CR DEL  |   0 (UP)
+;  LSHF E   S   Z   4   A   W   3   |   1 (DOWN)
+;   X   T   F   C   6   D   R   5   |   2 (LEFT)
+;   V   U   H   B   8   G   Y   7   |   3 (RIGHT)
+;   N   O   K   M   0   J   I   9   |   4 (BUTTON)
+;   ,   @   :   .   -   L   P   +   |   5
+;   /   ^   = RSHF HOME ;   * POUND |   6
+;  STOP Q  CBM SPC  2 CTRL  <-  1   |   7
+;
+;                                   | additional c128 keys:
+;                                   | bit in $d02f:
+;   1   7   4   2  TAB  5   8  HELP |   0
+;   3   9   6 ENTER LF  -   +  ESC  |   1
+;  NS RGHT LFT DWN  UP  .   0  ALT  |   2
+
+; values for "current key number" in C128 zeropage location $d4:
+	!src <cbm/c64/keys.a>	; values 00..63 are compatible to C64
+keynumber_HELP		= 64
+keynumber_KEYPAD8	= 65
+keynumber_KEYPAD5	= 66
+keynumber_TAB		= 67
+keynumber_KEYPAD2	= 68
+keynumber_KEYPAD4	= 69
+keynumber_KEYPAD7	= 70
+keynumber_KEYPAD1	= 71
+keynumber_ESC		= 72
+keynumber_KEYPADPLUS	= 73
+keynumber_KEYPADMINUS	= 74
+keynumber_LINEFEED	= 75
+keynumber_KEYPADENTER	= 76
+keynumber_KEYPAD6	= 77
+keynumber_KEYPAD9	= 78
+keynumber_KEYPAD3	= 79
+keynumber_ALT		= 80
+keynumber_KEYPAD0	= 81
+keynumber_KEYPADPOINT	= 82
+keynumber_CRSR128UP	= 83
+keynumber_CRSR128DOWN	= 84
+keynumber_CRSR128LEFT	= 85
+keynumber_CRSR128RIGHT	= 86
+keynumber_NOSCROLL	= 87
+keynumberC128_NONE	= 88	; no key pressed (C64 uses 64 instead)
+

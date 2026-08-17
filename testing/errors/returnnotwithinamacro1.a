@@ -1,0 +1,4 @@
+; (this file also gets included by returnnotwithinamacro2.a)
+
+; "!return" only works inside a macro:
+	!return	; -> "!return not within a macro"

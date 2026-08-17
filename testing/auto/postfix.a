@@ -1,0 +1,36 @@
+	!macro a @r {
+		!if @r != 1 {
+			!error "postfix did not work"
+		}
+	}
+	*=$1000
+	a = 3
+	a+2 = 3	; symbol has not been read, so adding postfix should work
+label
+label+2	; label has not been read, so adding postfix should work
+	!set b+2 = 17
+label2
+		lda b
+	+a * - label2 == 3
+label3
+	!for c+2, 17, 17 {
+		lda c
+	}
+	+a * - label3 == 3
+	d+2 = 17
+	!set d+2 = 17
+label4
+		lda d
+	+a * - label4 == 3
+label5
+	!set e+2=5
+	!for e+2, 17, 17 {
+		lda e
+	}
+	+a * - label5 == 3
+label6
+	f+3 = 17
+	!for g+2, f, f {
+		lda g
+	}
+	+a * - label6 == 3

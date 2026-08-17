@@ -1,0 +1,1 @@
+	result = 2.7 and 3	; -> "Converted to integer for binary logic operator."

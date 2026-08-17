@@ -1,0 +1,2 @@
+	*=$1000
+	!tx "ab\x9" 	; -> "Expected two hex digits after \x sequence."

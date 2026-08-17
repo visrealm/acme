@@ -1,0 +1,2 @@
+	*=$1000
+		jmp ($01ff)	; -> "Assembling buggy JMP($xxff) instruction."

@@ -1,0 +1,2 @@
+Zaphod
+	*=Zaphod	; -> "Symbol not defined." -> "Value not defined."

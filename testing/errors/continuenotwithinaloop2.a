@@ -1,0 +1,5 @@
+
+; "!continue" in a file is not supposed to continue a loop outside the file:
+	!do {
+		!src "continuenotwithinaloop1.a"	; -> "!continue not within a loop"
+	} while 0

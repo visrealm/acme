@@ -1,5 +1,5 @@
 // ToACME - converts other source codes to ACME format.
-// Copyright (C) 1999-2015 Marco Baye
+// Copyright (C) 1999-2025 Marco Baye
 // Have a look at "main.c" for further info
 //
 // stuff needed for "VisAss", "AssBlaster 3.x" and/or "Flash8-AssBlaster"
@@ -438,7 +438,6 @@ void AB_main(struct vab *client_config)
 {
 	int		err_bits;
 	const char	*comment_indent;
-	int		length_byte;
 	int		handled;
 
 	conf = client_config;
@@ -448,7 +447,7 @@ void AB_main(struct vab *client_config)
 		err_bits = 0;	// no errors yet (in this line)
 		handled = 0;
 		if (conf->flags & VABFLAG_HASLENGTHBYTE) {
-			length_byte = GotByte;
+			// ignore length byte
 			IO_get_byte();
 		}
 		comment_indent = "\t";

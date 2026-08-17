@@ -1,0 +1,6 @@
+	*=$3000
+	; file names are relative to the containing file beginning with 0.98:
+	!src "subdir/sub1.inc"
+	!if depth_given_in_included_file != 0 {
+		!error "included wrong file."
+	}

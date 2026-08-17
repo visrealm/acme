@@ -1,0 +1,9 @@
+
+; "!break" inside a macro is not supposed to break from a loop outside the macro:
+	!macro testmacro {
+		!break	; -> "!break not within a loop"
+	}
+
+	!for @i, 0, 2 {
+		+testmacro
+	}

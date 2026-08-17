@@ -1,0 +1,2 @@
+
+	*=-3	; -> "Program counter cannot be negative."

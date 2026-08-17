@@ -1,0 +1,2 @@
+	!symbollist "dummy.o"
+	!symbollist "dummy.o"	; -> "Symbol list file name already chosen."

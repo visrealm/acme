@@ -1,0 +1,4 @@
+
+	*=$1000
+	!pseudopc -17 {	; -> "Program counter cannot be negative."
+	}

@@ -1,0 +1,2 @@
+	*=$1000
+ label	; -> "Label name not in leftmost column."

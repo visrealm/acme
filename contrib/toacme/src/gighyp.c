@@ -1,5 +1,5 @@
 // ToACME - converts other source codes to ACME format.
-// Copyright (C) 1999-2006 Marco Baye
+// Copyright (C) 1999-2025 Marco Baye
 // Have a look at "main.c" for further info
 //
 // stuff needed for both "Hypra-Ass" and "Giga-Ass"
@@ -8,6 +8,7 @@
 #include "gighyp.h"
 #include "io.h"
 #include "pet2iso.h"
+#include <string.h>	// for strcmp()
 
 
 // called with GotByte == ';'
@@ -76,9 +77,11 @@ void GigaHypra_indent(int indent)
 
 
 // Process opcode and arguments
-void GigaHypra_argument(int flags)
+void GigaHypra_argument_with_instructs(struct Instructs instructs, int indent)
 {
 	int	paren	= 0;	// number of open parentheses (to close)
+	int	flags	= instructs.flags;
+	bool	ignore_after_comma	= FALSE;
 
 	// if needed, add separating space between opcode and argument
 	if ((flags & FLAG_INSERT_SPACE) && (GotByte != SPACE)
@@ -86,6 +89,24 @@ void GigaHypra_argument(int flags)
 			IO_put_byte(SPACE);
 	// character loop
 	while ((GotByte != ';') && (GotByte != '\0')) {
+		if ((GotByte == ',') && (flags & FLAG_TASK_WITH_COMMA)) {
+			if (strcmp(instructs.txtOpcode, ACME_po_pet) == 0) {
+				// repeat last pseudo-opcode
+				IO_put_byte('\n');
+				GigaHypra_indent(indent);
+				IO_put_string(ACME_po_pet);
+				IO_put_byte(' ');
+				IO_get_byte();
+			} else {
+				ignore_after_comma = TRUE;
+			}
+		}
+		if (ignore_after_comma == TRUE) {
+			// ignore everything after comma
+			IO_get_byte();
+			continue;
+		}
+
 		if (GotByte == '!')
 			GigaHypra_operator();
 		if (GotByte == '"') {
@@ -140,6 +161,14 @@ void GigaHypra_argument(int flags)
 		IO_put_string(ACME_cbmformat);
 	if (flags & FLAG_ADD_LEFT_BRACE)
 		IO_put_byte('{');
+}
+// wrapper for fn above
+void GigaHypra_argument(int flags)
+{
+	struct Instructs	instructs;
+
+	instructs.flags = flags;
+	GigaHypra_argument_with_instructs(instructs, 0);
 }
 
 

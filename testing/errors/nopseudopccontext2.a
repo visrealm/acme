@@ -1,2 +1,2 @@
-;ACME 0.96.5
-	b = &*
+	*=$1000
+	b = &*	; -> "Un-pseudopc operator '&' has no !pseudopc context."

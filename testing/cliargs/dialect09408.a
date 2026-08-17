@@ -1,0 +1,6 @@
+	; "!for" syntax changes in 0.94.12:
+	!for ii, 4 {
+		!info ii
+	}
+
+	!src "dialect09412.a"

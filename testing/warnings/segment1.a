@@ -1,0 +1,6 @@
+	*=$1000
+		clc
+		nop
+		rts
+	*=$1001
+		brk	; -> "Segment starts inside another one, overwriting it."

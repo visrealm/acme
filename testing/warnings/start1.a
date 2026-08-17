@@ -1,0 +1,6 @@
+	*=$1000
+	!tx "Hinz"
+	!outfilestart
+	!tx "Kunz"
+	!outfilestart	; -> "Start of output file already chosen."
+	!tx "Bla"

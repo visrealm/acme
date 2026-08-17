@@ -1,0 +1,22 @@
+
+	!macro a @r {
+		!if @r != 1 {
+			!error "assertion failed"
+		}
+	}
+
+	squares = [1, 4, 9]
+	emptylist = []
+	primes = [2, 3, 5, 7]
+	+a primes + emptylist + squares == [2,3,5,7,1,4,9]
+
+	somestring = "Arthur"
+	emptystring = ""
+	otherstring = "Ford"
+	+a otherstring + emptystring + somestring == "FordArthur"
+
+	!set collection = []
+	!for c in "Trillian" {
+		!set collection = collection + [c]
+	}
+	+a collection == [84, 114, 105, 108, 108, 105, 97, 110]

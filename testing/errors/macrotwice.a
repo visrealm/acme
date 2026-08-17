@@ -1,0 +1,4 @@
+	!macro dings {
+	}
+	!macro dings {	; -> "Macro already defined."
+	}

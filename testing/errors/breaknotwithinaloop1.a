@@ -1,0 +1,4 @@
+; (this file also gets included by breaknotwithinaloop2.a)
+
+; "!break" only works inside a loop:
+	!break	; -> "!break not within a loop"

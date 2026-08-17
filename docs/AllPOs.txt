@@ -20,10 +20,13 @@ Section:   How to insert values
 Call:		!8 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 8-bit values.
 Parameters:	EXPRESSION: Any formula the value parser accepts.
-Aliases:	"!08", "!by", "!byte"
-Examples:	!08 127, symbol, -128	; output some values
+		"list" objects will be treated as if all their items
+		were given separately.
+Aliases:	"!by", "!byt", "!byte", "!08"
+Examples:	!8 127, symbol, -128	; output some values
 		!by 14, $3d, %0110, &304, <*, 'c'
 		!byte 3 - 4, symbol1 XOR symbol2, 2 ^ tz, (3+4)*7
+		!byte [2, 3, 5, 7], other_list	; iterate over items
 
 
 Call:		!16 EXPRESSION [, EXPRESSION]*
@@ -35,6 +38,7 @@ Aliases:	"!wo", "!word" (and because all currently supported
 Examples:	!16 65535, symbol, -32768	; output some values
 		!wo 14, $4f35, %100101010010110, &36304, *, 'c'
 		!word 3000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!word [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!le16 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 16-bit values in little-endian byte order.
@@ -44,6 +48,7 @@ Aliases:	None (but because all currently supported CPUs are
 Examples:	!le16 65535, symbol, -32768	; output some values
 		!le16 14, $4f35, %100101010010110, &36304, *, 'c'
 		!le16 3000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!le16 [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!be16 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 16-bit values in big-endian byte order.
@@ -52,6 +57,7 @@ Aliases:	None
 Examples:	!be16 65535, symbol, -32768	; output some values
 		!be16 14, $4f35, %100101010010110, &36304, *, 'c'
 		!be16 3000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!be16 [2, 3, 5, 7], other_list	; iterate over items
 
 
 Call:		!24 EXPRESSION [, EXPRESSION]*
@@ -62,6 +68,7 @@ Aliases:	None (but because all currently supported CPUs are
 Examples:	!24 16777215, symbol, -8388608, 14, $6a4f35
 		!24 %10010110100101010010110, &47336304, *, 'c'
 		!24 300000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!24 [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!le24 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 24-bit values in little-endian byte order.
@@ -71,6 +78,7 @@ Aliases:	None (but because all currently supported CPUs are
 Examples:	!le24 16777215, symbol, -8388608, 14, $6a4f35
 		!le24 %10010110100101010010110, &47336304, *, 'c'
 		!le24 300000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!le24 [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!be24 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 24-bit values in big-endian byte order.
@@ -79,6 +87,7 @@ Aliases:	None
 Examples:	!be24 16777215, symbol, -8388608, 14, $6a4f35
 		!be24 %10010110100101010010110, &47336304, *, 'c'
 		!be24 300000 - 4, a1 AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!be24 [2, 3, 5, 7], other_list	; iterate over items
 
 
 Call:		!32 EXPRESSION [, EXPRESSION]*
@@ -89,6 +98,7 @@ Aliases:	None (but because all currently supported CPUs are
 Examples:	!32 $7fffffff, symbol, -$80000000, 14, $46a4f35
 		!32 %1001011010010101001011010010, &4733630435, *, 'c'
 		!32 300000 - 4, a AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!32 [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!le32 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 32-bit values in little-endian byte order.
@@ -98,6 +108,7 @@ Aliases:	None (but because all currently supported CPUs are
 Examples:	!le32 $7fffffff, symbol, -$80000000, 14, $46a4f35
 		!le32 %1001011010010101001011010010, &4733630435, *, 'c'
 		!le32 300000 - 4, a AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!le32 [2, 3, 5, 7], other_list	; iterate over items
 
 Call:		!be32 EXPRESSION [, EXPRESSION]*
 Purpose:	Insert 32-bit values in big-endian byte order.
@@ -106,6 +117,7 @@ Aliases:	None
 Examples:	!be32 $7fffffff, symbol, -$80000000, 14, $46a4f35
 		!be32 %1001011010010101001011010010, &4733630435, *, 'c'
 		!be32 300000 - 4, a AND a2, 2 ^ tz, (3+4)*70, l1 & .j2
+		!be32 [2, 3, 5, 7], other_list	; iterate over items
 
 
 Call:		!hex PAIRS_OF_HEX_DIGITS
@@ -215,7 +227,7 @@ Parameters:	STRING_VALUE: Can be either a string given in double
 		quotes or any formula the value parser accepts.
 		Please note that formula results won't be converted,
 		but single characters involved in calculations will.
-Aliases:	"!tx"
+Aliases:	"!tx", "!txt"
 Examples:	!text "Loading...", Char_NewLine, "Filename:", 0
 		!tx "Offset character is ", offset - 1 + 'a', 0
 
@@ -285,6 +297,7 @@ Parameters:	FILENAME: A file name given in "..." quoting.
 			cbm	with load address (Commodore format)
 			plain	without load address
 			apple	with load address and length (Apple II)
+			hex	Intel HEX (text, not binary)
 		If FILEFORMAT is omitted, ACME gives a warning and
 		then defaults to "cbm" (this can be changed using the
 		command line option "--format").
@@ -811,9 +824,26 @@ or type (call-by-value vs. call-by-reference). So
 can *all* be used at the same time without any name clash.
 
 Since release 0.97, lists are supported. This is useful for macros if
-you want an arbitrary number of arguments: Just define the macro with
-a single argument, then pass a list and have the macro iterate over
-its contents.
+you want an arbitrary number of arguments: Just pass a list or string
+as one of the arguments and have the macro iterate over its contents.
+Examples:	; a macro to store any number of arguments as 16-bit values:
+		!macro iter_example @iterable {
+			!for @item in @iterable {
+				!16 @item
+			}
+		}
+		+iter_example [2, 3, 5, 7]	; iterate over list items
+		+iter_example "string"		; iterate over characters
+
+		; a macro to "encrypt" each argument with its index:
+		!macro scramble @iterable {
+			@length = len(@iterable)
+			!for @index, 0, @length - 1 {
+				!byte @iterable[@index] xor @index
+			}
+		}
+		+scramble [2, 3, 5, 7]	; iterate over list items
+		+scramble "string"	; iterate over characters
 
 
 ----------------------------------------------------------------------

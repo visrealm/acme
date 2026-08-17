@@ -1,0 +1,41 @@
+	*=$1000
+label1		nop
+	!pseudopc $0300 {
+label2		nop
+		!if * != $0301 { !error "pseudo pc is not $0301" }
+		!if &* != $1002 { !error "un-pseudo'd pc is not $1002" }
+	selfmod = * + 1
+		lda #$ff
+
+	does_not_make_sense = label1 + 1
+
+	*=$0380
+		nop
+		!if * != $0381 { !error "pseudo pc is not $0381" }
+		!if &* != $1082 { !error "un-pseudo'd pc is not $1082" }
+	}
+	!if * != $1082 { !error "pc is not $1082" }
+
+	!if label2 != $0300 { !error "label2 is not $0300" }
+	!if &label2 != $1001 { !error "&label2 is not $1001" }
+
+	!if selfmod != $0302 { !error "selfmod is not $0302" }
+	!if &selfmod != $1003 { !error "&selfmod is not $1003" }
+
+	!if does_not_make_sense != $1001 { !error "dnms is not $1001" }
+	!if &does_not_make_sense != $1d02 { !error "dnms is not $1d02" }
+
+	; older versions automatically wrapped the pseudopc to zero, I now
+	; realize this should be considered a bug:
+	!pseudopc $fffe {
+		!by 0, 1, 2, 3
+label3	}
+	!if label3 != $10002 {
+		!error "pseudopc seems to wrap to zero after $ffff"
+	}
+	; and even worse, older versions automatically wrapped the outbuf index
+	; to zero as well, this is now also considered a bug:
+	*=$10000	; enter "second bank"
+	!if * == 0 {
+		!error "pc seems to wrap to zero after $ffff"
+	}

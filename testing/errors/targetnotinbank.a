@@ -1,0 +1,2 @@
+	*=$fff0
+		beq $10010	; -> "Target not in bank"

@@ -1,0 +1,3 @@
+	*=$1000
+	;sub= we do not define sub at all
+base?sub	nop	; -> "Substitution symbol is undefined"

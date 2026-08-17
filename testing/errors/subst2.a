@@ -1,0 +1,3 @@
+	*=$1000
+	!set sub = [2,3]	; sub is a list
+base?sub	nop	; -> "neither number nor string"

@@ -1,0 +1,2 @@
+	!subzone {	; -> ""!subzone {}" is obsolete; use "!zone {}" instead."
+	}

@@ -4,7 +4,7 @@
 ; Version 0.7
 ; Weitere Informationen am Ende der Datei
 ; Parameter:
-	!to "macedit.o", cbm
+	;!to "macedit.o", cbm
 	;!sl "macedit.l"
 	*= $1300
 	!ct pet

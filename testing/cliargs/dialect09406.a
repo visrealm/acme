@@ -1,0 +1,24 @@
+	; "!pseudopc"/"!realpc" throw error in 0.94.8:
+	*=$2000
+!nowarn	!pseudopc $2345
+		!wo *
+!nowarn	!realpc
+	; "!cbm" throws error in 0.94.8:
+!nowarn	!cbm
+	; "!subzone" throws error in 0.94.8:
+!nowarn	!subzone dummy
+	; "*=" terminates "!pseudopc", works in 0.94.8:
+	!pseudopc $1010 {
+		!if * != $1010 {
+			!error "pc is not $1010"
+		}
+!nowarn	*=$2020
+		!if * != $2020 {
+			!error "pc is not $2020"
+		}
+	}
+	!if * != $2020 {
+		!error "pc is not $2020"
+	}
+
+	!src "dialect09408.a"

@@ -1,0 +1,5 @@
+	*=$1000
+	!set inner = 6
+	!set outer = 7
+	; substitutions cannot be nested
+base?(?(inner)outer)	nop	; -> "no string given", "syntax error"

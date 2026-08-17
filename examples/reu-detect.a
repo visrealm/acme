@@ -1,0 +1,146 @@
+;ACME 0.97
+
+	!src <cbm/c64/reu.a>	; include REU/REC definitions
+	; define commands to use:
+	REUCOMMAND_STASH = rec_COMMAND_EXECUTE | rec_COMMAND_IMMEDIATELY | rec_COMMAND_MODE_STASH ; no reload
+	REUCOMMAND_FETCH = rec_COMMAND_EXECUTE | rec_COMMAND_IMMEDIATELY | rec_COMMAND_MODE_FETCH ; no reload
+
+	*=$0801
+	!src "misc/basicstub.a"
+		; basic stub jumps here
+		; start by printing "found " right away, that way we do not
+		; need to buffer the return values of the detection routine
+		; just to output a string.
+		ldy #<found
+		lda #>found
+		jsr print_string_AAYY
+		; now check REU capacity (see below for actual code)
+		jsr detect_reu_capacity
+		; now C and A hold number of banks.
+		; in theory all values from 0 up to and including 256 are
+		; possible, but here we're just checking the highest bit, so
+		; only the highest multiple of 2 is actually output:
+		ldx #8 ; offset to output "16 MiB" message
+		bcs @out
+--			dex ; next message
+			bmi found_nothing ; no banks at all
+			asl ; highest bit set?
+			bcc --
+@out		; now X says which message to output, so output it
+		ldy messages_low, x	; get correct low byte
+		lda #>messages	; get high byte (same for all messages)
+		jsr print_string_AAYY
+		; output common end (" of reu memory." + CR)
+		ldy #<end
+		lda #>end
+		jmp print_string_AAYY	; ...aaand we're done!
+
+; all the strings to output:
+found		!pet "found ", 0
+messages ; helper label for making sure everything is in one page of memory
+msg_64K		!pet "64kb", 0
+msg_128K	!pet "128kb", 0
+msg_256K	!pet "256kb", 0
+msg_512K	!pet "512kb", 0
+msg_1M		!pet "1mb", 0
+msg_2M		!pet "2mb", 0
+msg_4M		!pet "4mb", 0
+msg_8M		!pet "8mb", 0
+msg_16M		!pet "16mb", 0
+	; make sure all messages share the same high byte
+	!if >* != >messages { !error "messages span page border, fix code!" }
+; other strings:
+end		!pet " of reu memory.", 13, 0
+msg_nothing	!pet "no reu memory at all.", 13, 0
+
+; table of low bytes of message adresses
+messages_low	!by <msg_64K, <msg_128K, <msg_256K, <msg_512K
+		!by <msg_1M, <msg_2M, <msg_4M, <msg_8M, <msg_16M
+
+; if no reu memory has been found, output a different message
+found_nothing	ldy #<msg_nothing
+		lda #>msg_nothing
+		jmp print_string_AAYY
+
+	; include code for string output
+	!src "misc/print_string.a"
+
+; actual code to check for REU and find out RAM capacity:
+detect_reu_capacity ; returns: C,A = number of RAM banks found in REU
+; examples:
+; C=0, A=0:     0 banks found (no REU)
+; C=0, A=2:     2 banks found (128 KiB, CBM 1700)
+; C=0, A=4:     4 banks found (256 KiB, CBM 1764)
+; C=0, A=8:     8 banks found (512 KiB, CBM 1750)
+; C=0, A=16:   16 banks found (1 MiB)
+; C=0, A=32:   32 banks found (2 MiB)
+; C=0, A=64:   64 banks found (4 MiB)
+; C=0, A=128: 128 banks found (8 MiB)
+; C=1, A=0:   256 banks found (16 MiB)
+; bear in mind these are just example values. it is still possible someone has
+; upgraded their REU to 1.5 MiB so you would get a A=24 result!
+		ldx #0	; pre-init
+		; first write signatures to banks in *descending* order (banks 255..0):
+----			dex
+			stx banknum
+			lda #<signature_start
+			ldx #>signature_start
+			ldy #REUCOMMAND_STASH
+			jsr set_registers_AXY
+			; all banks written?
+			ldx banknum
+			bne ----
+		; now check signatures in *ascending* order:
+; (checking signatures could be shortened by using the REC's "verify" command,
+; but I'm reluctant to use this function in a "REU detect" routine: it could
+; be buggy in modern FPGA implementations because it is so seldomly used)
+		; banknum just became zero so no need to init it
+----			lda #<sig_candidate_start
+			ldx #>sig_candidate_start
+			ldy #REUCOMMAND_FETCH
+			jsr set_registers_AXY
+			; compare data
+			ldx #SIGNATURE_LENGTH_LOW - 1
+--				lda sig_candidate_start, x
+				cmp signature_start, x
+				bne @failed
+				dex
+				bpl --
+			; bank has correct signature
+			inc banknum	; next bank (== number of banks already found)
+			bne ----
+		; there are actually 256 banks!
+		sec
+		lda banknum	; A = 0, C = 1 -> 256 banks found
+		rts
+
+@failed		clc
+		lda banknum	; A = number of banks found, C = 0
+		rts
+
+set_registers_AXY ; setup REU registers (used for both reading and writing)
+; A/X: c64 address
+; Y: REU command
+		sta rec_int_low ; c64 address
+		stx rec_int_high
+		ldx #0
+		stx rec_ext_low ; reu address
+		stx rec_ext_high
+		lda banknum
+		sta rec_ext_bank
+		lda #SIGNATURE_LENGTH_LOW
+		sta rec_amount_low
+		stx rec_amount_high
+		sty rec_command
+		rts
+
+; signature we write to REU banks, first byte is bank number
+signature_start
+banknum		!tx 0, "bliblablub"
+	SIGNATURE_LENGTH_LOW = * - signature_start
+
+; target buffer when reading signatures back from REU
+sig_candidate_start
+		!tx "XBLIBLABLUB"	; must be same length as signature above, obviously
+sig_candidate_end
+	SIGNATURE_LENGTH_LOW = * - sig_candidate_start

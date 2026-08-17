@@ -1,0 +1,1 @@
+	!src "recursive-src.a"	; -> "Too deeply nested. Recursive "!source"?"

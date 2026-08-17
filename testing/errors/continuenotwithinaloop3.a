@@ -1,0 +1,10 @@
+
+; "!continue" inside a macro is not supposed to continue a loop outside the macro:
+	!macro testmacro {
+		!continue	; -> "!continue not within a loop"
+	}
+
+	!while 1 {
+		+testmacro
+		!break	; inhibit infinite loop :)
+	}

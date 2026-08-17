@@ -1,0 +1,3 @@
+	!macro dummy ~@x, ~@x {
+	}
+	+dummy ~y, ~z	; -> "Macro parameter twice."

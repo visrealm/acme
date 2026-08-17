@@ -1,0 +1,2 @@
+
+	nop	; -> "Program counter undefined."

@@ -1,12 +1,13 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2024 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // Platform specific stuff (in this case, for RISC OS)
 #ifndef platform_H
 #define platform_H
 
-#include "config.h"
+
+#include "config.h"	// for "bits"
 
 
 // symbolic constants and macros
@@ -14,23 +15,24 @@
 // called once on program startup (could register exit handler, if needed)
 #define PLATFORM_INIT			RISCOS_entry()
 
-// convert UNIX-style pathname to RISC OS-style pathname
-#define PLATFORM_CONVERTPATH(path)	RISCOS_convert_path(path)
-
-// directory separator for include paths
-#define DIRECTORY_SEPARATOR	'\0'	// actually '.', but paths ending on ':' are ok, so auto-adding '.' is bad)
+// directory separators for search paths
+#define DIRECTORY_SEPARATOR	'.'
+#define ALTERNATIVE_DIR_SEP	':'
 
 // string containing the prefix for accessing files from the library tree
+// (use "--libpath" cli switch to override)
 #define PLATFORM_LIBPREFIX	"ACME_Lib:"
-#define NO_NEED_FOR_ENV_VAR
+#define PLATFORM_USE_ENV_VAR	0	// no "ACME" environment variable needed/supported
 
 // setting file types of created files
 #define PLATFORM_SETFILETYPE_APPLE(a)	RISCOS_set_filetype(a, 0xffd)	// FIXME - wrong value!
 #define PLATFORM_SETFILETYPE_CBM(a)	RISCOS_set_filetype(a, 0x064)
 #define PLATFORM_SETFILETYPE_PLAIN(a)	RISCOS_set_filetype(a, 0xffd)
 #define PLATFORM_SETFILETYPE_TEXT(a)	RISCOS_set_filetype(a, 0xfff)
+#define PLATFORM_SETFILETYPE_HEX(a)	RISCOS_set_filetype(a, 0xfff)	// Intel HEX is text
 
 // platform specific message output
+#define PLATFORM_INFO(a)		RISCOS_throwback(a, 0)
 #define PLATFORM_WARNING(a)		RISCOS_throwback(a, 0)
 #define PLATFORM_ERROR(a)		RISCOS_throwback(a, 1)
 #define PLATFORM_SERIOUS(a)		RISCOS_throwback(a, 2)
@@ -45,7 +47,7 @@ do {				\
 
 // output of platform-specific command line switches
 #define PLATFORM_OPTION_HELP	\
-"  -t, --throwback        use the DDEUtils module's \"throwback\" protocol\n"
+"  -t, --throwback           use the DDEUtils module's \"throwback\" protocol\n"
 
 // processing of platform-specific command line switches
 #define PLATFORM_SHORTOPTION_CODE			\
@@ -65,10 +67,10 @@ extern bits	RISCOS_flags;	// Holds platform-specific flags
 
 // used as PLATFORM_INIT: registers exit handler
 extern void RISCOS_entry(void);
-// convert UNIX-style pathname to RISC OS-style pathname
-extern void RISCOS_convert_path(char *path);
+
 // setting the created files' types
 extern void RISCOS_set_filetype(const char *filename, int type);
+
 // use DDEUtils module's "Throwback" protocol
 extern void RISCOS_throwback(const char *msg, int type);
 

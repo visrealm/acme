@@ -1,0 +1,3 @@
+	!cpu 65ce02
+	*=$1000
+		sed	; -> "Found SED instruction for CPU with known decimal SBC bug."

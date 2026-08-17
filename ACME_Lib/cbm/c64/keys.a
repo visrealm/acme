@@ -1,0 +1,84 @@
+;ACME 0.97
+
+!ifdef lib_cbm_c64_keys_a !eof
+lib_cbm_c64_keys_a = 1
+
+;           bit in $dc01:           | bit in
+;   7   6   5   4   3   2   1   0   | $dc00:
+;(Joy1:       BUT RGHT LFT DWN UP)  |     (Joy2:)
+;-----------------------------------+---------
+;  DOWN F5  F3  F1  F7 RGHT CR DEL  |   0 (UP)
+;  LSHF E   S   Z   4   A   W   3   |   1 (DOWN)
+;   X   T   F   C   6   D   R   5   |   2 (LEFT)
+;   V   U   H   B   8   G   Y   7   |   3 (RIGHT)
+;   N   O   K   M   0   J   I   9   |   4 (BUTTON)
+;   ,   @   :   .   -   L   P   +   |   5
+;   /   ^   = RSHF HOME ;   * POUND |   6
+;  STOP Q  CBM SPC  2 CTRL  <-  1   |   7
+
+; values for "current key number" in C64 zeropage location $cb:
+keynumber_DEL		= 0
+keynumber_RETURN	= 1
+keynumber_CURSORRIGHT	= 2
+keynumber_F7		= 3
+keynumber_F1		= 4
+keynumber_F3		= 5
+keynumber_F5		= 6
+keynumber_CURSORDOWN	= 7
+keynumber_3		= 8
+keynumber_W		= 9
+keynumber_A		= 10
+keynumber_4		= 11
+keynumber_Z		= 12
+keynumber_S		= 13
+keynumber_E		= 14
+keynumber_LEFTSHIFT	= 15
+keynumber_5		= 16
+keynumber_R		= 17
+keynumber_D		= 18
+keynumber_6		= 19
+keynumber_C		= 20
+keynumber_F		= 21
+keynumber_T		= 22
+keynumber_X		= 23
+keynumber_7		= 24
+keynumber_Y		= 25
+keynumber_G		= 26
+keynumber_8		= 27
+keynumber_B		= 28
+keynumber_H		= 29
+keynumber_U		= 30
+keynumber_V		= 31
+keynumber_9		= 32
+keynumber_I		= 33
+keynumber_J		= 34
+keynumber_0		= 35
+keynumber_M		= 36
+keynumber_K		= 37
+keynumber_O		= 38
+keynumber_N		= 39
+keynumber_PLUS		= 40
+keynumber_P		= 41
+keynumber_L		= 42
+keynumber_MINUS		= 43
+keynumber_POINT		= 44
+keynumber_COLON		= 45
+keynumber_AT		= 46
+keynumber_COMMA		= 47
+keynumber_POUND		= 48
+keynumber_ASTERISK	= 49
+keynumber_SEMICOLON	= 50
+keynumber_HOME		= 51
+keynumber_RIGHTSHIFT	= 52
+keynumber_EQUALS	= 53
+keynumber_UPARROW	= 54
+keynumber_SLASH		= 55
+keynumber_1		= 56
+keynumber_LEFTARROW	= 57
+keynumber_CTRL		= 58
+keynumber_2		= 59
+keynumber_SPACE		= 60
+keynumber_CBM		= 61
+keynumber_Q		= 62
+keynumber_STOP		= 63
+keynumberC64_NONE	= 64	; no key pressed (C128 uses 88 instead)

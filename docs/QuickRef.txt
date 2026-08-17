@@ -194,7 +194,9 @@ Available options are:
 
     -f, --format FORMAT    set output file format
         Use this with a bogus format type to get a list of all
-        supported ones (as of writing: "plain", "cbm" and "apple")
+        supported ones (as of writing: "plain", "cbm", "apple" and
+        "hex"). "hex" writes Intel HEX, which is a text format; with
+        "--initmem" given, runs of the fill byte are left out.
     -o, --outfile FILE     set output file name
         Output file name and format can also be given using the "!to"
         pseudo opcode. If the format is not specified, "!to" defaults

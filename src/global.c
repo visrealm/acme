@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2025 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // Global stuff - things that are needed by several modules
@@ -11,8 +11,10 @@
 //  9 Jan 2018	Made '/' a syntax char to allow for "//" comments
 // 14 Apr 2020	Added config vars for "ignore zeroes" and "segment warnings to errors"
 #include "global.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include <string.h>	// for strcmp()
+#if defined(_WIN32) || defined(_WIN64)
+#include <stdlib.h>	// for _fullpath() and _MAX_PATH
+#endif
 #include "platform.h"
 #include "acme.h"
 #include "alu.h"
@@ -34,11 +36,10 @@ char		s_untitled[]	= "<untitled>";	// FIXME - this is actually const
 
 
 // Exception messages during assembly
-const char	exception_missing_string[]	= "No string given.";
 const char	exception_negative_size[]	= "Negative size argument.";
-const char	exception_no_left_brace[]	= "Missing '{'.";
+const char	exception_no_left_brace []	= "Expected '{' character.";
 const char	exception_no_memory_left[]	= "Out of memory.";
-const char	exception_no_right_brace[]	= "Found end-of-file instead of '}'.";
+const char	exception_no_right_brace []	= "Expected '}', found EOF instead.";
 //const char	exception_not_yet[]	= "Sorry, feature not yet implemented.";
 // TODO - show actual value in error message
 const char	exception_number_out_of_range[]	= "Number out of range.";
@@ -100,10 +101,10 @@ const char	global_byte_flags[256]	= {
 
 
 // variables
-char		GotByte;			// Last byte read (processed)
 struct report 	*report			= NULL;
 struct config	config;
 struct pass	pass;
+struct sanity	sanity;
 
 // set configuration to default values
 void config_default(struct config *conf)
@@ -114,13 +115,28 @@ void config_default(struct config *conf)
 	conf->warn_on_type_mismatch	= FALSE;	// use type-checking system
 	conf->warn_bin_mask		= 3;  // %11 -> warn if not divisible by four
 	conf->max_errors		= MAXERRORS;	// errors before giving up
+	conf->sanity_limit		= SANITY_LIMIT;	// changed by --maxdepth
 	conf->format_msvc		= FALSE;	// enabled by --msvc
 	conf->format_color		= FALSE;	// enabled by --color
 	conf->msg_stream		= stderr;	// set to stdout by --use-stdout
 	conf->honor_leading_zeroes	= TRUE;		// disabled by --ignore-zeroes
-	conf->segment_warning_is_error	= FALSE;	// enabled by --strict-segments		TODO - toggle default?
+	conf->strict_segments		= FALSE;	// enabled by --strict-segments and V0.98
+	conf->all_warnings_are_errors	= FALSE;	// enabled by --strict
 	conf->test_new_features		= FALSE;	// enabled by --test
-	conf->wanted_version		= VER_CURRENT;	// changed by --dialect
+	conf->dialect			= V__CURRENT_VERSION;	// changed by --dialect
+	conf->politeness		= 0;		// changed by --please
+	conf->debuglevel		= DEBUGLEVEL_DEBUG;	// changed by --debuglevel, used by "!debug"
+	conf->platform_lib_prefix	= PLATFORM_LIBPREFIX;
+	conf->initial_cpu_type		= NULL;
+	conf->symbollist_filename	= NULL;
+	conf->vicelabels_filename	= NULL;
+	conf->output_filename		= NULL;
+	conf->outfile_format		= OUTFILE_FORMAT_UNSPECIFIED;
+	conf->report_filename		= NULL;
+	conf->mem_init_value		= NO_VALUE_GIVEN;	// set by --initmem
+	conf->initial_pc		= NO_VALUE_GIVEN;	// set by --setpc
+	conf->outfile_start		= NO_VALUE_GIVEN;	// set by --from-to
+	conf->outfile_limit		= NO_VALUE_GIVEN;	// end+1, set by --from-to
 }
 
 // memory allocation stuff
@@ -128,10 +144,11 @@ void config_default(struct config *conf)
 // allocate memory and die if not available
 void *safe_malloc(size_t size)
 {
-	void	*block;
+	void	*block	= malloc(size);
 
-	if ((block = malloc(size)) == NULL)
-		Throw_serious_error(exception_no_memory_left);
+	if (block == NULL)
+		throw_serious_error(exception_no_memory_left);
+
 	return block;
 }
 
@@ -139,15 +156,56 @@ void *safe_malloc(size_t size)
 // Parser stuff
 
 
-// Check and return whether first label of statement. Complain if not.
-static int first_label_of_statement(bits *statement_flags)
+static boolean	in_addr_block	= FALSE;
+static boolean	in_nowarn_block	= FALSE;
+
+// set new value for "we are in !addr block" flag,
+// return old value
+// (called by "!addr { }")
+boolean parser_change_addr_block_flag(boolean new_value)
 {
-	if ((*statement_flags) & SF_IMPLIED_LABEL) {
-		Throw_error(exception_syntax);
-		Input_skip_remainder();
+	boolean	old_value	= in_addr_block;
+
+	in_addr_block = new_value;
+	return old_value;
+}
+// set new value for "we are in !nowarn block" flag,
+// return old value
+// (called by "!nowarn { }")
+boolean parser_change_nowarn_block_flag(boolean new_value)
+{
+	boolean	old_value	= in_nowarn_block;
+
+	in_nowarn_block = new_value;
+	return old_value;
+}
+
+#define SF_FOUND_BLANK		(1u << 0)	// statement started with space or tab
+#define SF_FOUND_SYMBOL		(1u << 1)	// statement had label or symbol definition
+#define SF_ADDR_PREFIX		(1u << 2)	// explicit symbol definition is an address
+#define SF_NOWARN_PREFIX	(1u << 3)	// suppress warnings for this statement
+static bits	statement_flags;
+
+// called by "!addr" pseudo op if used without block
+extern void parser_set_addr_prefix(void)
+{
+	statement_flags |= SF_ADDR_PREFIX;
+}
+// called by "!nowarn" pseudo op if used without block
+extern void parser_set_nowarn_prefix(void)
+{
+	statement_flags |= SF_NOWARN_PREFIX;
+}
+
+// Check and return whether first symbol of statement. Complain if not.
+static int first_symbol_of_statement(void)
+{
+	if (statement_flags & SF_FOUND_SYMBOL) {
+		throw_error("Unknown mnemonic");
+		parser_skip_remainder();
 		return FALSE;
 	}
-	(*statement_flags) |= SF_IMPLIED_LABEL;	// now there has been one
+	statement_flags |= SF_FOUND_SYMBOL;	// now there has been one
 	return TRUE;
 }
 
@@ -156,43 +214,38 @@ static int first_label_of_statement(bits *statement_flags)
 // name must be held in GlobalDynaBuf.
 // called by parse_symbol_definition, parse_backward_anon_def, parse_forward_anon_def
 // "powers" is used by backward anons to allow changes
-static void set_label(scope_t scope, bits stat_flags, bits force_bit, bits powers)
+static void set_label(scope_t scope, bits force_bit, bits powers)
 {
 	struct symbol	*symbol;
-	struct number	pc;
 	struct object	result;
 
-	if ((stat_flags & SF_FOUND_BLANK) && config.warn_on_indented_labels)
-		Throw_first_pass_warning("Label name not in leftmost column.");
+	if ((statement_flags & SF_FOUND_BLANK) && config.warn_on_indented_labels) {
+		throw_finalpass_warning("Label name not in leftmost column.");
+	}
 	symbol = symbol_find(scope);
-	vcpu_read_pc(&pc);	// FIXME - if undefined, check pass.complain_about_undefined and maybe throw "value not defined"!
 	result.type = &type_number;
-	result.u.number.ntype = NUMTYPE_INT;	// FIXME - if undefined, use NUMTYPE_UNDEFINED!
-	result.u.number.flags = 0;
-	result.u.number.val.intval = pc.val.intval;
-	result.u.number.addr_refs = pc.addr_refs;
+	programcounter_read_asterisk(&result.u.number);
 	symbol_set_object(symbol, &result, powers);
 	if (force_bit)
 		symbol_set_force_bit(symbol, force_bit);
-	symbol->pseudopc = pseudopc_get_context();
 	// global labels must open new scope for cheap locals
 	if (scope == SCOPE_GLOBAL)
 		section_new_cheap_scope(section_now);
 }
 
 
-// call with symbol name in GlobalDynaBuf and GotByte == '='
+// call with symbol name in GlobalDynaBuf and '=' already eaten.
+// fn is exported so "!set" pseudo opcode can call it.
 // "powers" is for "!set" pseudo opcode so changes are allowed (see symbol.h for powers)
 void parse_assignment(scope_t scope, bits force_bit, bits powers)
 {
 	struct symbol	*symbol;
 	struct object	result;
 
-	GetByte();	// eat '='
 	symbol = symbol_find(scope);
 	ALU_any_result(&result);
 	// if wanted, mark as address reference
-	if (typesystem_says_address()) {
+	if (in_addr_block || (statement_flags & SF_ADDR_PREFIX)) {
 		// FIXME - checking types explicitly is ugly...
 		if (result.type == &type_number)
 			result.u.number.addr_refs = 1;
@@ -205,108 +258,144 @@ void parse_assignment(scope_t scope, bits force_bit, bits powers)
 
 // parse symbol definition (can be either global or local, may turn out to be a label).
 // name must be held in GlobalDynaBuf.
-static void parse_symbol_definition(scope_t scope, bits stat_flags)
+static void parse_symbol_definition(scope_t scope)
 {
 	bits	force_bit;
 
-	force_bit = Input_get_force_bit();	// skips spaces after	(yes, force bit is allowed for label definitions)
+	force_bit = parser_get_force_bit();	// skips spaces after	(yes, force bit is allowed for label definitions)
 	if (GotByte == '=') {
 		// explicit symbol definition (symbol = <something>)
+		GetByte();	// eat '='
 		parse_assignment(scope, force_bit, POWER_NONE);
-		Input_ensure_EOS();
+		parser_ensure_EOS();
 	} else {
 		// implicit symbol definition (label)
-		set_label(scope, stat_flags, force_bit, POWER_NONE);
+		set_label(scope, force_bit, POWER_NONE);
 	}
 }
 
 
 // Parse global symbol definition or assembler mnemonic
-static void parse_mnemo_or_global_symbol_def(bits *statement_flags)
+static void parse_mnemo_or_global_symbol_def(void)
 {
-	boolean	is_mnemonic;
+	// read keyword and ask current cpu type if it's a mnemonic
+	if (cpu_current_type->keyword_is_mnemonic(parser_read_keyword()))
+		return;	// statement has been handled
 
-	is_mnemonic = CPU_state.type->keyword_is_mnemonic(Input_read_keyword());
-	// It is only a label if it isn't a mnemonic
-	if ((!is_mnemonic)
-	&& first_label_of_statement(statement_flags)) {
-		// Now GotByte = illegal char
-		// 04 Jun 2005: this fix should help to explain "strange" error messages.
-		// 17 May 2014: now it works for UTF-8 as well.
-		if ((*GLOBALDYNABUF_CURRENT == (char) 0xa0)
-		|| ((GlobalDynaBuf->size >= 2) && (GLOBALDYNABUF_CURRENT[0] == (char) 0xc2) && (GLOBALDYNABUF_CURRENT[1] == (char) 0xa0)))
-			Throw_first_pass_warning("Label name starts with a shift-space character.");
-		parse_symbol_definition(SCOPE_GLOBAL, *statement_flags);
+	// if we're here, it wasn't a mnemonic, so it can only be a symbol name
+	if (!first_symbol_of_statement())
+		return;	// more than one symbol, error has been reported
+
+	// Now GotByte = illegal char
+	// 04 Jun 2005: this fix should help to explain "strange" error messages.
+	// 17 May 2014: now it works for UTF-8 as well.
+	if ((*GLOBALDYNABUF_CURRENT == (char) 0xa0)
+	|| ((GlobalDynaBuf->size >= 2) && (GLOBALDYNABUF_CURRENT[0] == (char) 0xc2) && (GLOBALDYNABUF_CURRENT[1] == (char) 0xa0))) {
+		throw_finalpass_warning("Symbol name starts with a shift-space character.");
 	}
+	parse_symbol_definition(SCOPE_GLOBAL);
 }
 
 
 // parse (cheap) local symbol definition
-static void parse_local_symbol_def(bits *statement_flags, scope_t scope)
+static void parse_local_symbol_def(void)
 {
-	if (!first_label_of_statement(statement_flags))
+	scope_t	scope;
+
+	if (!first_symbol_of_statement())
 		return;
 
-	GetByte();	// start after '.'/'@'
-	if (Input_read_keyword())
-		parse_symbol_definition(scope, *statement_flags);
+	if (input_read_scope_and_symbol_name(&scope) == 0)
+		parse_symbol_definition(scope);
 }
 
 
 // parse anonymous backward label definition. Called with GotByte == '-'
-static void parse_backward_anon_def(bits *statement_flags)
+static void parse_backward_anon_def(void)
 {
-	if (!first_label_of_statement(statement_flags))
+	if (!first_symbol_of_statement())
 		return;
 
-	DYNABUF_CLEAR(GlobalDynaBuf);
-	do
+	dynabuf_clear(GlobalDynaBuf);
+	do {
 		DYNABUF_APPEND(GlobalDynaBuf, '-');
-	while (GetByte() == '-');
-	DynaBuf_append(GlobalDynaBuf, '\0');
+	} while (GetByte() == '-');
+	dynabuf_append(GlobalDynaBuf, '\0');
 	// backward anons change their value!
-	set_label(section_now->local_scope, *statement_flags, NO_FORCE_BIT, POWER_CHANGE_VALUE);
+	set_label(section_now->local_scope, NO_FORCE_BIT, POWER_CHANGE_VALUE);
 }
 
 
 // parse anonymous forward label definition. called with GotByte == ?
-static void parse_forward_anon_def(bits *statement_flags)
+static void parse_forward_anon_def(void)
 {
-	if (!first_label_of_statement(statement_flags))
+	if (!first_symbol_of_statement())
 		return;
 
-	DYNABUF_CLEAR(GlobalDynaBuf);
-	DynaBuf_append(GlobalDynaBuf, '+');
+	dynabuf_clear(GlobalDynaBuf);
+	dynabuf_append(GlobalDynaBuf, '+');
 	while (GotByte == '+') {
 		DYNABUF_APPEND(GlobalDynaBuf, '+');
 		GetByte();
 	}
 	symbol_fix_forward_anon_name(TRUE);	// TRUE: increment counter
-	DynaBuf_append(GlobalDynaBuf, '\0');
+	dynabuf_append(GlobalDynaBuf, '\0');
 	//printf("[%d, %s]\n", section_now->local_scope, GlobalDynaBuf->buffer);
-	set_label(section_now->local_scope, *statement_flags, NO_FORCE_BIT, POWER_NONE);
+	set_label(section_now->local_scope, NO_FORCE_BIT, POWER_NONE);
 }
 
+
+static enum shortcut	current_shortcut_state	= SHORTCUT_NONE;
+// return current shortcut state
+enum shortcut parser_get_shortcut(void)
+{
+	return current_shortcut_state;
+}
+// start or end processing a !break/!continue/!return keyword
+void parser_set_shortcut(enum shortcut new_shortcut)
+{
+	//printf("Changing shortcut state from %d to %d.\n", current_shortcut_state, new_shortcut);
+	switch (new_shortcut) {
+	case SHORTCUT_NONE:
+		if (current_shortcut_state == SHORTCUT_NONE)
+			BUG("ShortcutDoubleNone", 0);
+		current_shortcut_state = new_shortcut;
+		break;
+	case SHORTCUT_BREAK:
+	case SHORTCUT_CONT:
+	case SHORTCUT_RETURN:
+		if (current_shortcut_state != SHORTCUT_NONE)
+			BUG("ShortcutDouble", current_shortcut_state);
+		current_shortcut_state = new_shortcut;
+		break;
+	default:
+		BUG("IllegalShortcut", new_shortcut);
+	}
+}
+// status var to tell mainloop (actually "statement loop") to exit.
+// this is better than the error handler exiting directly, because
+// there are cases where an error message is followed by an info message
+// (like "macro redefined _here_" and "original definition _there_"),
+// and this way the program does not exit between the two.
+// FIXME - there is still the problem of not getting a dump of the macro call stack for the final error!
+static boolean	too_many_errors	= FALSE;
 
 // Parse block, beginning with next byte.
 // End reason (either CHAR_EOB or CHAR_EOF) can be found in GotByte afterwards
 // Has to be re-entrant.
-void Parse_until_eob_or_eof(void)
+void parse_until_eob_or_eof(void)
 {
-	bits	statement_flags;
-
-//	// start with next byte, don't care about spaces
-//	NEXTANDSKIPSPACE();
 	// start with next byte
+	// (don't SKIPSPACE() here, we want to warn about "label not in leftmost column"!)
 	GetByte();
 	// loop until end of block or end of file
 	while ((GotByte != CHAR_EOB) && (GotByte != CHAR_EOF)) {
 		// process one statement
-		statement_flags = 0;	// no "label = pc" definition yet
-		typesystem_force_address_statement(FALSE);
-		// Parse until end of statement. Only loops if statement
-		// contains implicit label definition (=pc) and something else; or
-		// if "!ifdef/ifndef" is true/false, or if "!addr" is used without block.
+		statement_flags = 0;	// no spaces, no labels, no !addr, no !nowarn
+		// Parse until end of statement. Only loops in these cases:
+		// - statement contains label and something else
+		// - "!ifdef"/"!ifndef" is used without block
+		// - "!addr"/"!nowarn" is used without block
 		do {
 			// check for pseudo opcodes was moved out of switch,
 			// because prefix character is now configurable.
@@ -325,38 +414,46 @@ void Parse_until_eob_or_eof(void)
 					GetByte();	// skip
 					break;
 				case '-':
-					parse_backward_anon_def(&statement_flags);
+					parse_backward_anon_def();
 					break;
 				case '+':
 					GetByte();
-					if ((GotByte == LOCAL_PREFIX)	// TODO - allow "cheap macros"?!
+					if ((GotByte == LOCAL_PREFIX)
+					|| (GotByte == CHEAP_PREFIX)
 					|| (BYTE_CONTINUES_KEYWORD(GotByte)))
-						Macro_parse_call();
+						macro_parse_call();
 					else
-						parse_forward_anon_def(&statement_flags);
+						parse_forward_anon_def();
 					break;
 				case '*':
 					notreallypo_setpc();	// define program counter (fn is in pseudoopcodes.c)
 					break;
 				case LOCAL_PREFIX:
-					parse_local_symbol_def(&statement_flags, section_now->local_scope);
-					break;
 				case CHEAP_PREFIX:
-					parse_local_symbol_def(&statement_flags, section_now->cheap_scope);
+					parse_local_symbol_def();
 					break;
 				default:
 					if (BYTE_STARTS_KEYWORD(GotByte)) {
-						parse_mnemo_or_global_symbol_def(&statement_flags);
+						parse_mnemo_or_global_symbol_def();
 					} else {
-						Throw_error(exception_syntax);
-						Input_skip_remainder();
+						throw_error(exception_syntax);	// FIXME - include char in error message!
+						parser_skip_remainder();
 					}
 				}
 			}
 		} while (GotByte != CHAR_EOS);	// until end-of-statement
-		vcpu_end_statement();	// adjust program counter
-		// go on with next byte
-		GetByte();	//NEXTANDSKIPSPACE();
+		output_end_statement();	// adjust program counter
+		// did the error handler decide to give up?
+		if (too_many_errors)
+			exit(ACME_finalize(EXIT_FAILURE));
+		// was any of the shortcut POs used?
+		if (current_shortcut_state == SHORTCUT_NONE) {
+			// go on with next byte
+			GetByte();	//NEXTANDSKIPSPACE();
+		} else {
+			// ignore remainder of block:
+			input_block_skip();
+		}
 	}
 }
 
@@ -364,115 +461,321 @@ void Parse_until_eob_or_eof(void)
 // Skip space. If GotByte is CHAR_SOB ('{'), parse block and return TRUE.
 // Otherwise (if there is no block), return FALSE.
 // Don't forget to call EnsureEOL() afterwards.
-int Parse_optional_block(void)
+int parse_optional_block(void)
 {
 	SKIPSPACE();
 	if (GotByte != CHAR_SOB)
 		return FALSE;
-	Parse_until_eob_or_eof();
+
+	parse_until_eob_or_eof();
 	if (GotByte != CHAR_EOB)
-		Throw_serious_error(exception_no_right_brace);
+		throw_serious_error(exception_no_right_brace);
 	GetByte();
 	return TRUE;
+}
+
+// parse a whole source code file
+// file name must be given in platform style, i.e.
+// "directory/basename.extension" on linux,
+// "directory.basename/extension" on RISC OS, etc.
+// and the pointer must remain valid forever!
+void parse_source_code_file(FILE *fd, const char *eternal_plat_filename)
+{
+	struct inputchange_buf	icb;
+	const char		*ppb;	// path buffer in platform format
+	boolean		break_cont_allowed;
+	boolean		return_allowed;
+
+	// be verbose
+	if (config.process_verbosity >= 3)
+		printf("Parsing source file \"%s\".\n", eternal_plat_filename);
+
+	// remember base for relative paths and set new one:
+	ppb = input_plat_pathref_filename;
+	input_plat_pathref_filename = eternal_plat_filename;
+	// remember input and set up new one:
+	inputchange_new_file(&icb, fd, eternal_plat_filename);
+	// remember whether break/continue/return are allowed and forbid them in
+	// new file (just to enforce "clean code"):
+	break_cont_allowed = parser_allow_break_cont(FALSE);
+	return_allowed = parser_allow_return(FALSE);
+
+	// parse block and check end reason
+	parse_until_eob_or_eof();
+	if (GotByte != CHAR_EOF)
+		throw_error("Expected EOF, found '}' instead." );
+
+	// restore states of break/continue/return
+	parser_allow_return(return_allowed);
+	parser_allow_break_cont(break_cont_allowed);
+	// restore outer input
+	inputchange_back(&icb);
+	// restore outer base for relative paths
+	input_plat_pathref_filename = ppb;
+}
+
+// read optional info about parameter length
+bits parser_get_force_bit(void)
+{
+	char	byte;
+	bits	force_bit	= 0;
+
+	if (GotByte == '+') {
+		byte = GetByte();
+		if (byte == '1')
+			force_bit = NUMBER_FORCES_8;
+		else if (byte == '2')
+			force_bit = NUMBER_FORCES_16;
+		else if (byte == '3')
+			force_bit = NUMBER_FORCES_24;
+		if (force_bit)
+			GetByte();
+		else
+			throw_error("Illegal postfix.");
+	}
+	SKIPSPACE();
+	return force_bit;
+}
+
+// return current state and set new state of "allow !break and !continue" flag
+boolean parser_allow_break_cont(boolean new_state)
+{
+	static boolean	flag	= FALSE;
+	boolean		temp;
+
+	temp = flag;
+	flag = new_state;
+	return temp;
+}
+// return current state and set new state of "allow !return" flag
+boolean parser_allow_return(boolean new_state)
+{
+	static boolean	flag	= FALSE;
+	boolean		temp;
+
+	temp = flag;
+	flag = new_state;
+	return temp;
 }
 
 
 // Error handling
 
-// error/warning counter so macro calls can find out whether to show a call stack
-static int	throw_counter	= 0;
-int Throw_get_counter(void)
-{
-	return throw_counter;
-}
-
 // This function will do the actual output for warnings, errors and serious
 // errors. It shows the given message string, as well as the current
 // context: file name, line number, source type and source title.
-// TODO: make un-static so !info and !debug can use this.
-static void throw_message(const char *message, const char *type)
+// if the "optional alternative location" given is NULL, the current location is used
+static void print_msg(const char *message, const char *ansicolor, const char *type, struct location *opt_alt_loc)
 {
-	++throw_counter;
+	const char	*resetcolor	= "\033[0m";
+	struct location	location;
+	const char	*filename;
 
-	char *filename = Input_now->original_filename;
-	
-#ifdef _WINDOWS
-	char absPath[_MAX_PATH];
-	_fullpath(absPath, filename, _MAX_PATH);
-	filename = absPath;
+	if (!config.format_color) {
+		ansicolor = "";
+		resetcolor = "";
+	}
+
+	// optional alternative location given?
+	if (opt_alt_loc)
+		location = *opt_alt_loc;	// use alternative location
+	else
+		input_get_location(&location);	// use current location
+
+	filename = location.plat_filename;
+#if defined(_WIN32) || defined(_WIN64)
+	// show absolute paths so IDEs can jump straight to the offending line.
+	// on failure (or for pseudo-filenames like "-D SYMBOL=VALUE") just keep
+	// what we were given.
+	{
+		static char	abs_path[_MAX_PATH];
+
+		if (filename && _fullpath(abs_path, filename, _MAX_PATH))
+			filename = abs_path;
+	}
 #endif
 
-	if (config.format_msvc)
-		fprintf(config.msg_stream, "%s(%d) : %s (%s %s): %s\n",
-			filename, Input_now->line_number,
-			type, section_now->type, section_now->title, message);
-	else
-		fprintf(config.msg_stream, "%s - File %s, line %d (%s %s): %s\n",
-			type, filename, Input_now->line_number,
+	if (config.format_msvc) {
+		fprintf(config.msg_stream, "%s(%d) : %s%s%s (%s %s): %s\n",
+			filename, location.line_number,
+			ansicolor, type, resetcolor,
 			section_now->type, section_now->title, message);
+	} else {
+		fprintf(config.msg_stream, "%s%s%s - File %s, line %d (%s %s): %s\n",
+			ansicolor, type, resetcolor,
+			filename, location.line_number,
+			section_now->type, section_now->title, message);
+	}
 }
 
+// flag, tells throw_error how to behave. set to FALSE by throw__done_with_cli_args().
+// this is needed because errors like "\xZZ is not a valid backslash sequence" are
+// handled by calling throw_error(), but they can happen
+//	- in cli args, using the "-D SYMBOL=VALUE" syntax, where we want to exit, and
+//	- in source codes, where we want a "file=F, line=N" output and go on!
+static boolean	error_is_in_cli_args	= TRUE;
 
-// Output a warning.
-// This means the produced code looks as expected. But there has been a
-// situation that should be reported to the user, for example ACME may have
-// assembled a 16-bit parameter with an 8-bit value.
-void Throw_warning(const char *message)
+// generate debug/info/warning/error message
+// if the "optional alternative location" given is NULL, the current location is used
+void throw_message(enum debuglevel level, const char msg[], struct location *opt_alt_loc)
 {
-	PLATFORM_WARNING(message);
-	if (config.format_color)
-		throw_message(message, "\033[33mWarning\033[0m");
+	// FIXME: we only expect normal errors in cli args, no warnings or
+	// other stuff, so enable this:
+	//if (error_is_in_cli_args)
+	//	BUG("damn");
+
+	// if level is taken from source, ensure valid value:
+	if (level < DEBUGLEVEL_SERIOUS)
+		level = DEBUGLEVEL_SERIOUS;
+
+	switch (level) {
+	case DEBUGLEVEL_SERIOUS:
+		// output a serious error
+		// (assembly stops, for example if outbuffer overruns).
+		PLATFORM_SERIOUS(msg);
+		print_msg(msg, "\033[1m\033[31m", "Serious error", opt_alt_loc);	// bold + red
+		//++pass.counters.errors;	// FIXME - needed when problem below is solved
+		exit(ACME_finalize(EXIT_FAILURE)); // FIXME - this inhibits output of macro call stack
+	case DEBUGLEVEL_ERROR:
+		// output an error
+		// (something is wrong, no output file will be generated).
+		PLATFORM_ERROR(msg);
+		print_msg(msg, "\033[31m", "Error", opt_alt_loc);	// red
+		++pass.counters.errors;
+		if (pass.counters.errors >= config.max_errors)
+			too_many_errors = TRUE;	// this causes mainloop to exit
+		break;
+	case DEBUGLEVEL_WARNING:
+		// output a warning
+		// (something looks wrong, like "label name starts with shift-space character")
+		// first check if warnings should be suppressed right now:
+		if (in_nowarn_block || (statement_flags & SF_NOWARN_PREFIX))
+			break;
+		PLATFORM_WARNING(msg);
+		print_msg(msg, "\033[33m", "Warning", opt_alt_loc);	// yellow
+		++pass.counters.warnings;
+		// then check if warnings should be handled like errors:
+		if (config.all_warnings_are_errors) {
+			++pass.counters.errors;
+			if (pass.counters.errors >= config.max_errors)
+				too_many_errors = TRUE;	// this causes mainloop to exit
+		}
+		break;
+	case DEBUGLEVEL_INFO:
+		PLATFORM_INFO(msg);
+		print_msg(msg, "\033[32m", "Info", opt_alt_loc);	// green
+		break;
+	default:
+		// debug
+		print_msg(msg, "\033[36m", "Debug", opt_alt_loc);	// cyan
+		break;
+	}
+}
+
+// output a warning (something looks wrong)
+void throw_warning(const char msg[])
+{
+	throw_message(DEBUGLEVEL_WARNING, msg, NULL);
+}
+
+// output an error (something is wrong, no output file will be generated).
+// the assembler will try to go on with the assembly, so the user gets to know
+// about more than one of their typos at a time.
+void throw_error(const char msg[])
+{
+	if (error_is_in_cli_args)
+		ACME_cli_args_error(msg);	// does not return...
 	else
-		throw_message(message, "Warning");
-}
-// Output a warning if in first pass. See above.
-void Throw_first_pass_warning(const char *message)
-{
-	if (FIRST_PASS)
-		Throw_warning(message);
+		throw_message(DEBUGLEVEL_ERROR, msg, NULL);
 }
 
-
-// Output an error.
-// This means something went wrong in a way that implies that the output
-// almost for sure won't look like expected, for example when there was a
-// syntax error. The assembler will try to go on with the assembly though, so
-// the user gets to know about more than one of his typos at a time.
-void Throw_error(const char *message)
+// output a serious error (assembly stops, for example if outbuffer overruns).
+extern void throw_serious_error(const char msg[])
 {
-	PLATFORM_ERROR(message);
-	if (config.format_color)
-		throw_message(message, "\033[31mError\033[0m");
-	else
-		throw_message(message, "Error");
-	++pass.error_count;
-	if (pass.error_count >= config.max_errors)
-		exit(ACME_finalize(EXIT_FAILURE));
+	throw_message(DEBUGLEVEL_SERIOUS, msg, NULL);
 }
 
-
-// Output a serious error, stopping assembly.
-// Serious errors are those that make it impossible to go on with the
-// assembly. Example: "!fill" without a parameter - the program counter cannot
-// be set correctly in this case, so proceeding would be of no use at all.
-void Throw_serious_error(const char *message)
+// output a warning, but only if we are in first pass, otherwise suppress
+// (only use this if using throw_finalpass_warning is impossible,
+// for example in cases where the code is skipped in later passes)
+void throw_pass1_warning(const char msg[])
 {
-	PLATFORM_SERIOUS(message);
-	if (config.format_color)
-		throw_message(message, "\033[1m\033[31mSerious error\033[0m");
-	else
-		throw_message(message, "Serious error");
-	// FIXME - exiting immediately inhibits output of macro call stack!
-	exit(ACME_finalize(EXIT_FAILURE));
+	if (pass.number == 1)
+		throw_warning(msg);
 }
 
-
-// Handle bugs
-void Bug_found(const char *message, int code)
+// output a warning, but only if we are in final pass, otherwise suppress
+// (for example "converted float to int for XOR" -> must be done in
+// final pass because values might be undefined earlier!)
+void throw_finalpass_warning(const char msg[])
 {
-	Throw_warning("Bug in ACME, code follows");
+	if (pass.flags.is_final_pass)
+		throw_warning(msg);
+}
+
+// throw "macro twice"/"symbol twice" error
+// first output error as "error", then location of initial definition as "info"
+void throw_redef_error(const char error_msg[], struct location *old_def, const char info_msg[])
+{
+	const char	*buffered_section_type;
+	char		*buffered_section_title;
+
+	// show error with current location
+	throw_error(error_msg);
+
+	// symbol structs do not necessarily have valid location data:
+	if (old_def->plat_filename == NULL)
+		return;
+
+	// CAUTION, ugly kluge: fiddle with section_now data to generate
+	// "earlier definition" section.
+	// buffer old section
+	buffered_section_type = section_now->type;
+	buffered_section_title = section_now->title;
+	// set new (fake) section
+	// FIXME - maybe store section in definition, just as location is stored?
+	// then we could use real data here instead of faking it, but it would
+	// take a bit more memory...
+	section_now->type = "earlier";
+	section_now->title = "section";
+	// show info message with location of earlier definition
+	throw_message(DEBUGLEVEL_INFO, info_msg, old_def);
+	// restore old section
+	section_now->type = buffered_section_type;
+	section_now->title = buffered_section_title;
+}
+
+// ugly kluge, switches throw_error() from cli args mode to normal mode
+void throw__done_with_cli_args(void)
+{
+	error_is_in_cli_args = FALSE;
+}
+
+// handle bugs
+// FIXME - use a local buffer and sprintf/snprintf to put error code into message!
+void BUG(const char *message, int code)
+{
+	throw_warning("Bug in ACME, code follows");
 	fprintf(stderr, "(0x%x:)", code);
-	Throw_serious_error(message);
+	throw_serious_error(message);
+}
+
+// process error that might vanish if symbols change:
+// if current pass is an "error output" pass, actually throw error.
+// otherwise just increment counter to let mainloop know this pass wasn't successful.
+void countorthrow_value_error(const char *msg)
+{
+	boolean	complain;
+
+	if (config.dialect >= V0_98__PATHS_AND_SYMBOLCHANGE)
+		complain = pass.flags.throw_all_errors;	// since 0.98, "value errors" are only thrown if pass flag is set
+	else
+		complain = TRUE;	// in earlier versions they were always thrown
+
+	if (complain)
+		throw_error(msg);
+	else
+		++pass.counters.suppressed_errors;
 }
 
 
@@ -491,7 +794,7 @@ void output_object(struct object *object, struct iter_context *iter)
 		else if (object->u.number.ntype == NUMTYPE_FLOAT)
 			iter->fn(object->u.number.val.fpval);
 		else
-			Bug_found("IllegalNumberType0", object->u.number.ntype);
+			BUG("IllegalNumberType0", object->u.number.ntype);
 	} else if (object->type == &type_list) {
 		// iterate over list
 		item = object->u.listhead->next;
@@ -509,10 +812,10 @@ void output_object(struct object *object, struct iter_context *iter)
 			while (length--)
 				iter->fn(iter->stringxor ^ encoding_encode_char(*(read++)));
 		} else {
-			Throw_error("There's more than one character.");	// see alu.c for the original of this error
+			throw_error("There's more than one character.");	// see alu.c for the original of this error
 		}
 	} else {
-		Bug_found("IllegalObjectType", 0);
+		BUG("IllegalObjectType", 0);
 	}
 }
 
@@ -521,8 +824,8 @@ void output_object(struct object *object, struct iter_context *iter)
 void output_8(intval_t value)
 {
 	if ((value < -0x80) || (value > 0xff))
-		Throw_error(exception_number_out_of_8b_range);
-	Output_byte(value);
+		countorthrow_value_error(exception_number_out_of_8b_range);
+	output_byte(value);
 }
 
 
@@ -530,9 +833,9 @@ void output_8(intval_t value)
 void output_be16(intval_t value)
 {
 	if ((value < -0x8000) || (value > 0xffff))
-		Throw_error(exception_number_out_of_16b_range);
-	Output_byte(value >> 8);
-	Output_byte(value);
+		countorthrow_value_error(exception_number_out_of_16b_range);
+	output_byte(value >> 8);
+	output_byte(value);
 }
 
 
@@ -540,9 +843,9 @@ void output_be16(intval_t value)
 void output_le16(intval_t value)
 {
 	if ((value < -0x8000) || (value > 0xffff))
-		Throw_error(exception_number_out_of_16b_range);
-	Output_byte(value);
-	Output_byte(value >> 8);
+		countorthrow_value_error(exception_number_out_of_16b_range);
+	output_byte(value);
+	output_byte(value >> 8);
 }
 
 
@@ -550,10 +853,10 @@ void output_le16(intval_t value)
 void output_be24(intval_t value)
 {
 	if ((value < -0x800000) || (value > 0xffffff))
-		Throw_error(exception_number_out_of_24b_range);
-	Output_byte(value >> 16);
-	Output_byte(value >> 8);
-	Output_byte(value);
+		countorthrow_value_error(exception_number_out_of_24b_range);
+	output_byte(value >> 16);
+	output_byte(value >> 8);
+	output_byte(value);
 }
 
 
@@ -561,10 +864,10 @@ void output_be24(intval_t value)
 void output_le24(intval_t value)
 {
 	if ((value < -0x800000) || (value > 0xffffff))
-		Throw_error(exception_number_out_of_24b_range);
-	Output_byte(value);
-	Output_byte(value >> 8);
-	Output_byte(value >> 16);
+		countorthrow_value_error(exception_number_out_of_24b_range);
+	output_byte(value);
+	output_byte(value >> 8);
+	output_byte(value >> 16);
 }
 
 
@@ -578,11 +881,11 @@ void output_le24(intval_t value)
 void output_be32(intval_t value)
 {
 //	if ((value < -0x80000000) || (value > 0xffffffff))
-//		Throw_error(exception_number_out_of_32b_range);
-	Output_byte(value >> 24);
-	Output_byte(value >> 16);
-	Output_byte(value >> 8);
-	Output_byte(value);
+//		countorthrow_value_error(exception_number_out_of_32b_range);
+	output_byte(value >> 24);
+	output_byte(value >> 16);
+	output_byte(value >> 8);
+	output_byte(value);
 }
 
 
@@ -590,9 +893,31 @@ void output_be32(intval_t value)
 void output_le32(intval_t value)
 {
 //	if ((value < -0x80000000) || (value > 0xffffffff))
-//		Throw_error(exception_number_out_of_32b_range);
-	Output_byte(value);
-	Output_byte(value >> 8);
-	Output_byte(value >> 16);
-	Output_byte(value >> 24);
+//		countorthrow_value_error(exception_number_out_of_32b_range);
+	output_byte(value);
+	output_byte(value >> 8);
+	output_byte(value >> 16);
+	output_byte(value >> 24);
+}
+
+
+// string shown in CLI error message if outputformat_set() returns nonzero:
+const char	outputformat_names[]	= "'plain', 'cbm', 'apple', 'hex'";
+
+// convert output format name held in DynaBuf to enum.
+// returns OUTFILE_FORMAT_UNSPECIFIED on error.
+enum outfile_format outputformat_find(void)
+{
+	if (strcmp(GlobalDynaBuf->buffer, "plain") == 0)
+		return OUTFILE_FORMAT_PLAIN;
+	else if (strcmp(GlobalDynaBuf->buffer, "cbm") == 0)
+		return OUTFILE_FORMAT_CBM;
+	else if (strcmp(GlobalDynaBuf->buffer, "apple") == 0)
+		return OUTFILE_FORMAT_APPLE;
+	else if (strcmp(GlobalDynaBuf->buffer, "hex") == 0)
+		return OUTFILE_FORMAT_HEX;
+//	else if (strcmp(GlobalDynaBuf->buffer, "o65") == 0)
+//		return OUTFILE_FORMAT_O65;
+
+	return OUTFILE_FORMAT_UNSPECIFIED;
 }

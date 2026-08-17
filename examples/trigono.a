@@ -1,5 +1,5 @@
 ;ACME 0.94.12
-	!to "trigono.o", plain
+	;!to "trigono.o", plain
 	* = $c000
 
 	PI = 3.14159265358979323846

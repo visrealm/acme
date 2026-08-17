@@ -1,0 +1,4 @@
+	*=$1000, outfilestart
+	!tx "Hinz"
+	!outfilestart	; -> "Start of output file already chosen."
+	!tx "Kunz"

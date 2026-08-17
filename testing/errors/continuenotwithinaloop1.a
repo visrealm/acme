@@ -1,0 +1,4 @@
+; (this file also gets included by continuenotwithinaloop2.a)
+
+; "!continue" only works inside a loop:
+	!continue	; -> "!continue not within a loop"

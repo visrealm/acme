@@ -1,0 +1,1 @@
+	result = 3 eor 5	; -> ""EOR" is deprecated; use "XOR" instead."

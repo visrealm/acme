@@ -149,47 +149,47 @@ vdcstate_VERSIONMASK	= %...#####	; vdc version (0, 1 or 2)
 
 
 ; indirect registers		(default value, see $e179 in C128 kernal)
-vdcr_htotal		= $00	; 126 (127 for PAL, depends on kernal version)	characters per line, minus one
-vdcr_columns		= $01	; 80	characters per line, actually displayed
- vdcr_hdisp		= $01
-vdcr_hsync_pos		= $02	; 102	character position to send horizontal sync in
-vdcr_syncwidth		= $03	; $49	4b vertical, 4b horizontal
-vdcr_vtotal		= $04	; 32 (39 or 38 for PAL, depends on kernal version)	character lines per screen, minus one
-vdcr_vadjust		= $05	; 0	additional scan lines per screen (to fix timings)
-vdcr_lines		= $06	; 25	character lines per screen, actually displayed
- vdcr_vdisp		= $06
-vdcr_vsync_pos		= $07	; 29 (32 for PAL)	character line to send vertical sync in
-vdcr_interlace		= $08	; 0	interlace mode (0=2=std, 1=jitter, 3=interlace)
-vdcr_charheight_total	= $09	; 7	5b total, minus one
-vdcr_crsr_start		= $0a	; $20	2b mode, 5b scanline
+vdcr_htotal		= 0	; 126 (127 for PAL, depends on kernal version)	characters per line, minus one
+vdcr_columns		= 1	; 80	characters per line, actually displayed
+ vdcr_hdisp		= 1
+vdcr_hsync_pos		= 2	; 102	character position to send horizontal sync in
+vdcr_syncwidth		= 3	; $49	4b vertical, 4b horizontal
+vdcr_vtotal		= 4	; 32 (39 or 38 for PAL, depends on kernal version)	character lines per screen, minus one
+vdcr_vadjust		= 5	; 0	additional scan lines per screen (to fix timings)
+vdcr_lines		= 6	; 25	character lines per screen, actually displayed
+ vdcr_vdisp		= 6
+vdcr_vsync_pos		= 7	; 29 (32 for PAL)	character line to send vertical sync in
+vdcr_interlace		= 8	; 0	interlace mode (0=2=std, 1=jitter, 3=interlace)
+vdcr_charheight_total	= 9	; 7	5b total, minus one
+vdcr_crsr_start		= 10	; $20	2b mode, 5b scanline (top line of cursor)
 	vdcr_CRSRSTART_MODE_MASK	= %.##.....
 ;	vdcr_CRSRSTART_MODE_FIXED	= %........	; fixed cursor
 	vdcr_CRSRSTART_MODE_OFF		= %..#.....	; invisible
 	vdcr_CRSRSTART_MODE_FAST	= %.#......	; flashing with 1/16 of refresh freq
 	vdcr_CRSRSTART_MODE_SLOW	= %.##.....	; flashing with 1/32 of refresh freq
-vdcr_crsr_end		= $0b	; 7		5b scanline
-vdcr_display_hi		= $0c	; 0	RAM address of display buffer
-vdcr_display_lo		= $0d	; 0
-vdcr_crsr_hi		= $0e	; 0	RAM address of cursor
-vdcr_crsr_lo		= $0f	; 0
-vdcr_lp_y		= $10	; --	y position of light pen (lines, plus 1)
-vdcr_lp_x		= $11	; --	x position of light pen (characters, plus 8)
-vdcr_ram_hi		= $12	; --	RAM address of register $1f (reading/writing register $1f automatically increments this address)
-vdcr_ram_lo		= $13	; --
-vdcr_attr_hi		= $14	; $08	RAM address of attribute buffer
-vdcr_attr_lo		= $15	; $00
-vdcr_charwidth		= $16	; $78	4b total minus one, 4b displayed minus one
-vdcr_charheight_disp	= $17	; 8	5b displayed, minus one
-vdcr_control_v		= $18	; $20	vertical scroll and much other stuff
+vdcr_crsr_end		= 11	; 7		5b scanline (bottom line of cursor, plus 1, so should be 8 instead of 7!)
+vdcr_display_hi		= 12	; 0	RAM address of display buffer,
+vdcr_display_lo		= 13	; 0		see "hardscroll" notes below
+vdcr_crsr_hi		= 14	; 0	RAM address of cursor
+vdcr_crsr_lo		= 15	; 0
+vdcr_lp_y		= 16	; --	y position of light pen (lines, plus 1)
+vdcr_lp_x		= 17	; --	x position of light pen (characters, plus 8)
+vdcr_ram_hi		= 18	; --	RAM address of register 31 (reading/writing r31
+vdcr_ram_lo		= 19	; --		automatically increments this address)
+vdcr_attr_hi		= 20	; $08	RAM address of attribute buffer,
+vdcr_attr_lo		= 21	; $00		see "hardscroll" notes below
+vdcr_charwidth		= 22	; $78	4b total minus one, 4b displayed
+vdcr_charheight_disp	= 23	; 8	5b displayed, minus one (so 7 would suffice)
+vdcr_control_v		= 24	; $20	vertical scroll and much other stuff
 	vdcr_CONTROLV_BLOCKMODE_MASK	= %#.......
-;	vdcr_CONTROLV_BLOCKMODE_WRITE	= %........	; writing to register $1e starts block write
-	vdcr_CONTROLV_BLOCKMODE_COPY	= %#.......	; writing to register $1e starts block copy
+;	vdcr_CONTROLV_BLOCKMODE_WRITE	= %........	; writing to register 30 starts block write
+	vdcr_CONTROLV_BLOCKMODE_COPY	= %#.......	; writing to register 30 starts block copy
 	vdcr_CONTROLV_REVERSESCREEN	= %.#......
 	vdcr_CONTROLV_FLASHFREQ_MASK	= %..#.....
 ;	vdcr_CONTROLV_FLASHFREQ_FAST	= %........
 	vdcr_CONTROLV_FLASHFREQ_SLOW	= %..#.....
 	vdcr_CONTROLV_UPSCROLL_MASK	= %...#####
-vdcr_control_h		= $19	; $47 ($40 for vdc version 0)	horizontal scroll and much other stuff
+vdcr_control_h		= 25	; $47 ($40 for vdc version 0)	horizontal scroll and much other stuff
 	vdcr_CONTROLH_MODE_MASK		= %#.......
 ;	vdcr_CONTROLH_MODE_TEXT		= %........
 	vdcr_CONTROLH_MODE_BITMAP	= %#.......
@@ -200,25 +200,25 @@ vdcr_control_h		= $19	; $47 ($40 for vdc version 0)	horizontal scroll and much o
 	vdcr_CONTROLH_PIXELWIDTH_MASK	= %...#....
 ;	vdcr_CONTROLH_PIXELWIDTH_NARROW	= %........
 	vdcr_CONTROLH_PIXELWIDTH_WIDE	= %...#....
-	vdcr_CONTROLH_LEFTSCROLL_MASK	= %....####
-vdcr_color		= $1a	; $f0	4b foreground, 4b background
-	vdcr_COLOR_FOREGROUND_MASK	= %####....	; only used if attributes are off (see bit 6 of reg $19)
+	vdcr_CONTROLH_RIGHTSCROLL_MASK	= %....####
+vdcr_color		= 26	; $f0	4b foreground, 4b background
+	vdcr_COLOR_FOREGROUND_MASK	= %####....	; only used if attributes are off (see bit 6 of reg 25)
 	vdcr_COLOR_BACKGROUND_MASK	= %....####
-vdcr_row_inc		= $1b	; 0	address increment per row
-vdcr_charset		= $1c	; $20	3b charset pointer, 1b RAM type, 4b unused
+vdcr_row_inc		= 27	; 0	address increment per row
+vdcr_charset		= 28	; $20	3b charset pointer, 1b RAM type, 4b unused
 	vdcr_CHARSET_ADRESS_MASK	= %###.....
 	vdcr_CHARSET_RAMTYPE_MASK	= %...#....
 ;	vdcr_CHARSET_RAMTYPE_16K	= %........
 	vdcr_CHARSET_RAMTYPE_64K	= %...#....
-vdcr_underline		= $1d	; 7	5b scanline
-vdcr_cycles		= $1e	; --	number of write- or copy-cycles. 0 means 256.
-vdcr_access		= $1f	; --	contents of RAM selected by registers $12/$13
-vdcr_source_hi		= $20	; --	start address for block copy
-vdcr_source_lo		= $21	; --
-vdcr_enable_start	= $22	; 125	column to enable display in
-vdcr_enable_end		= $23	; 100	column to disable display in
-vdcr_dram_refresh	= $24	; 5	RAM refresh cycles per line (lower 4 bits)
-vdcr_sync_polarity	= $25	; --	only in VDC 8568
+vdcr_underline		= 29	; 7	5b scanline
+vdcr_cycles		= 30	; --	number of write- or copy-cycles. 0 means 256.
+vdcr_access		= 31	; --	contents of RAM selected by registers 18/19
+vdcr_source_hi		= 32	; --	start address for block copy (block copying
+vdcr_source_lo		= 33	; --		automatically increments this address)
+vdcr_enable_start	= 34	; 125	column to enable display in (6 is left of text)
+vdcr_enable_end		= 35	; 100	column to disable display in (86 is right of text)
+vdcr_dram_refresh	= 36	; 5	RAM refresh cycles per line (lower 4 bits)
+vdcr_sync_polarity	= 37	; --	only in VDC 8568
 	vdcr_HSYNC_POLARITY	= %#.......
 	vdcr_VSYNC_POLARITY	= %.#......
 
@@ -232,3 +232,9 @@ vdcr_sync_polarity	= $25	; --	only in VDC 8568
 	rom8_vdc_to_vic_color_table	= $81f3 ; 00 0c 06 0e 05 0d 0b 03 02 0a 08 04 09 07 0f 01
 	romc_vic_to_vdc_color_table	= $ce5c ; 00 0f 08 07 0b 04 02 0d 0a 0c 09 06 01 05 03 0e
 }
+
+; "hardscroll" notes:
+; the vdc seems to read the values from registers 12/13/20/21 (screen ram and
+; attribute ram) at the _end_ of the display window, so if you change these
+; registers in the lower border, the next frame will still use the old values.
+; this is important if you want to combine hardscroll and softscroll.

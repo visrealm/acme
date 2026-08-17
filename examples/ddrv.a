@@ -47,12 +47,12 @@
 
 !if SYSTEM = 64 {
 	* = $c000
-	!to "ddrv64.prg", cbm
+	;!to "ddrv64.prg", cbm
 !addr	VIC_Base	= $d000
 }
 !if SYSTEM = 128 {
 	* = $0c00
-	!to "ddrv128.prg", cbm
+	;!to "ddrv128.prg", cbm
 !addr	VIC_Base	= $11d6	; Location of mirror registers
 }
 

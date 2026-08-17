@@ -1,0 +1,14 @@
+	!if FORMAT == 0 {
+		!to "test.o"
+	} else if FORMAT == 1 {
+		!to "test.o", plain
+	} else if FORMAT == 2 {
+		!to "test.o", cbm
+	} else if FORMAT == 3 {
+		!to "test.o", apple
+	} else {
+		!error "unexpected FORMAT"
+	}
+	*=$1000
+		lda #0
+		rts

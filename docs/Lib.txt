@@ -14,7 +14,19 @@ within ACME sources when using the pseudo opcodes "!source" or
 If the file names are given using "..." quoting, ACME will look for
 the files in the current directory.
 If the file names are given using <...> quoting, ACME will look for
-them in the ACME_Lib directory tree however.
+them in the library directory.
+
+The actual location of the library directory can be given in several
+different ways:
+    1. a default can be given when compiling the ACME binary.
+    2. an environment variable called "ACME" overrides this.
+    3. and the CLI switch "--libpath" overrides even that.
+
+Setting up an environment variable is OS-specific, so for example on
+Linux, put this in your .bashrc file:
+    export ACME="$HOME/.acme/ACME_Lib"
+...and of course you will then have to copy the library tree to that
+location.
 
 All files in the ACME_Lib directory tree are in the public domain.
 They are *NOT* covered by the GNU General Public License, under which

@@ -1,0 +1,4 @@
+	!macro recursive @dummy {
+		+recursive @dummy
+	}
+	+recursive 42	; -> "Too deeply nested. Recursive macro calls?"

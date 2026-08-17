@@ -1,0 +1,2 @@
+	*=$1000
+label		beq (label)	; -> "There are unneeded parentheses, you know indirect addressing is impossible here, right?"

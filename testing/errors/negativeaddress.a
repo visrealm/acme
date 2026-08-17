@@ -1,0 +1,5 @@
+	*=$1000
+	!pseudopc $8000 {
+		* = $6000	; -> "Tried to write to negative address."
+		rts
+	}

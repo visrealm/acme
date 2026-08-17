@@ -1,0 +1,4 @@
+	*=$1000
+	!cpu r65c02
+		bbs0 $ab, base - 129	; -> "Target out of range (-129; 1 too far)."
+base

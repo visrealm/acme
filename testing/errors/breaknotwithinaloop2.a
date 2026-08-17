@@ -1,0 +1,5 @@
+
+; "!break" in a file is not supposed to break from a loop outside the file:
+	!for @i in "ab" {
+		!src "breaknotwithinaloop1.a"	; -> "!break not within a loop"
+	}

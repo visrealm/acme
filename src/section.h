@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2024 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // section stuff
@@ -26,10 +26,13 @@ extern struct section	*section_now;
 
 // write given info into given structure and activate it
 extern void section_new(struct section *section, const char *type, char *title, boolean allocated);
+
 // change scope of cheap locals in given section
 extern void section_new_cheap_scope(struct section *section);
+
 // setup outermost section
 extern void section_passinit(void);
+
 // tidy up: if necessary, release section title.
 extern void section_finalize(struct section *section);
 

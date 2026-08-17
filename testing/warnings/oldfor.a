@@ -1,0 +1,4 @@
+	*=$1000
+	!for i, 5 {	; -> "Found old "!for" syntax."
+		nop
+	}

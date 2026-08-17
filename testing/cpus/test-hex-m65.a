@@ -87,11 +87,11 @@ M65 = 1	; make next include skip the NOP mnemonic (re-used as prefix code by M65
 		;ldq ($01, x)	; a1
 		ldq $05		; a5
 		ldq $0d0e	; ad
-		ldq ($11), y	; b1
-		ldq ($12)	; b2
-		ldq $15, x	; b5
-		ldq $1919, y	; b9
-		ldq $1d1e, x	; bd
+		;ldq ($11), y	; b1
+		ldq ($12), z	; b2
+		;ldq $15, x	; b5
+		;ldq $1919, y	; b9
+		;ldq $1d1e, x	; bd
 		;cpq ($01, x)	; c1
 		cpq $05		; c5
 		deq $05		; c6
@@ -105,7 +105,7 @@ M65 = 1	; make next include skip the NOP mnemonic (re-used as prefix code by M65
 		;cpq $1d1e, x	; dd
 		deq $1d1e, x	; de
 		;sbcq ($01, x)	; e1
-		ldq ($e2, s), y	; e2
+		;ldq ($e2, s), y	; e2
 		sbcq $05	; e5
 		inq $05		; e6
 		sbcq $0d0e	; ed
@@ -132,6 +132,6 @@ M65 = 1	; make next include skip the NOP mnemonic (re-used as prefix code by M65
 		eorq [$12]	; 52
 		adcq [$12]	; 72
 		stq [$12]	; 92
-		ldq [$12]	; b2
+		ldq [$12], z	; b2
 		cpq [$12]	; d2
 		sbcq [$12]	; f2

@@ -1,0 +1,6 @@
+	*=$1001
+		brk
+	*=$1000
+		clc
+		nop	; -> "Segment reached another one, overwriting it."
+		rts

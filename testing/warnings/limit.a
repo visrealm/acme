@@ -1,0 +1,6 @@
+	*=$1000
+	!tx "Hinz"
+	!outfilelimit
+	!tx "Kunz"
+	!outfilelimit	; -> "End of output file already chosen."
+	!tx "Bla"

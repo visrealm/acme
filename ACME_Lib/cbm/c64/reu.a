@@ -16,16 +16,16 @@ rec_STATUS_IRQ		= %#.......
 rec_STATUS_END		= %.#......
 rec_STATUS_ERROR	= %..#.....	; for verify command
 rec_STATUS_TYPE		= %...#....	; chip type (do not use to determine unit size!)
-rec_STATUS_VERSION	= %....####
+rec_STATUS_VERSION	= %....####	; always zero
 !address {
 	; command register
 	rec_command	= $df01
 }
-rec_COMMAND_EXECUTE	= %#.......
-;reserved		= %.#......
-rec_COMMAND_RELOAD	= %..#.....
+rec_COMMAND_EXECUTE	= %#.......	; setting this starts the operation
+;reserved		= %.#......	; register bit exists, but does nothing
+rec_COMMAND_RELOAD	= %..#.....	; reload address registers when done (do not use in verify mode, because you want the address in case of an error!)
 rec_COMMAND_IMMEDIATELY	= %...#....	; do not wait for $ff00 write
-;reserved		= %....##..
+;reserved		= %....##..	; register bits exist, but do nothing
 rec_COMMAND_MODE_MASK	= %......##	; bit mask for the four modes
 rec_COMMAND_MODE_STASH	= %........	; computer-to-REU
 rec_COMMAND_MODE_FETCH	= %.......#	; REU-to-computer
@@ -40,7 +40,7 @@ rec_COMMAND_FETCH	= %#.#....#	;	starting and then reload values.
 	; external address (expansion RAM)
 	rec_ext_low	= $df04
 	rec_ext_high	= $df05
-	rec_ext_bank	= $df06
+	rec_ext_bank	= $df06	; upper five bits always read as 1
 	; A stock 1700 unit has two banks (128 KiB).
 	; A stock 1764 unit has four banks (256 KiB).
 	; A stock 1750 unit has eight banks (512 KiB).
@@ -50,14 +50,69 @@ rec_COMMAND_FETCH	= %#.#....#	;	starting and then reload values.
 	rec_amount_low	= $df07	; using $0000 results in
 	rec_amount_high	= $df08	;	64 KiB being transferred
 	; when to request interrupts
-	rec_irqctrl	= $df09
+	rec_irqctrl	= $df09	; lower five bits always read as 1
 }
 rec_IRQCTRL_ENABLE	= %#.......
 rec_IRQCTRL_ON_END	= %.#......
 rec_IRQCTRL_ON_ERROR	= %..#.....	; for verify errors
 !address {
 	; address control (set to zero for normal operation)
-	rec_addrctrl	= $df0a
+	rec_addrctrl	= $df0a	; lower six bits always read as 1
 }
 rec_ADDRCTRL_FIX_INT	= %#.......
 rec_ADDRCTRL_FIX_EXT	= %.#......
+
+	; $df0b..$df1f always read as $ff,
+	; at $df20 the registers repeat.
+	; these "32 registers" are visible 8 times in the $df00 page.
+
+; The REC is labeled "MOS 8726R1" and was available as a giant (64-pin) DIP
+; version and as a 68-pin quad-pack version. Both packages seem to contain the
+; same die, but because of the different number of pins, they are bonded
+; slightly differently.
+
+; Pinouts:
+;
+;        DIP version
+;         ____ ____                            /reset 1
+;        |    V    |                   /irq 2         |         68 n.c.
+; /reset |  1   64 | vcc            dotclk 3 \        |        / 67 vcc
+;   /irq |  2   63 | bs               r/w 4 \ \       |       / / 66 bs
+; dotclk |  3   62 | /cas1         1 MHz 5 \ \ \      |      / / / 65 /cas1
+;    r/w |  4   61 | /cas0          /cs 6 \ \ \ \     |     / / / / 64 /cas0
+;  1 MHz |  5   60 | /ras1         /ba 7 \ \ \ \ \    |    / / / / / 63 /ras1
+;    /cs |  6   59 | /ras0       /dma 8 \ \ \ \ \ \   |   / / / / / / 62 /ras0
+;    /ba |  7   58 | /dwe         d7 9 \ \ \ \ \ \ \  |  / / / / / / / 61 /dwe
+;   /dma |  8   57 | dd0              \_\_\_\_\_\_\_\_|_/_/_/_/_/_/_/_/
+;     d7 |  9   56 | dd1        d6 10|                o                |60 dd0
+;     d6 | 10   55 | dd2        d5 11|                                 |59 dd1
+;     d5 | 11   54 | dd3        d4 12|                                 |58 dd2
+;     d4 | 12   53 | dd4        d3 13|                                 |57 dd3
+;     d3 | 13   52 | dd5        d2 14|                                 |56 dd4
+;     d2 | 14   51 | dd6        d1 15|                                 |55 dd5
+;     d1 | 15   50 | dd7        d0 16|                                 |54 dd6
+;     d0 | 16   49 | vss      n.c. 17|            quad pack            |53 dd7
+;    vss | 17   48 | ma8       vss 18|                                 |52 vss
+;    a15 | 18   47 | ma7       a15 19|             version             |51 n.c.
+;    a14 | 19   46 | ma6       a14 20|                                 |50 ma8
+;    a13 | 20   45 | ma5       a13 21|                                 |49 ma7
+;    a12 | 21   44 | ma4       a12 22|                                 |48 ma6
+;    a11 | 22   43 | ma3       a11 23|                                 |47 ma5
+;    a10 | 23   42 | ma2       a10 24|                                 |46 ma4
+;     a9 | 24   41 | ma1        a9 25|                                 |45 ma3
+;     a8 | 25   40 | ma0        a8 26|_________________________________|44 ma2
+;     a7 | 26   39 | test             / / / / / / / / | \ \ \ \ \ \ \ \
+;     a6 | 27   38 | vss         a7 27 / / / / / / /  |  \ \ \ \ \ \ \ 43 ma1
+;     a5 | 28   37 | vcc          a6 28 / / / / / /   |   \ \ \ \ \ \ 42 ma0
+;     a4 | 29   36 | /romsel       a5 29 / / / / /    |    \ \ \ \ \ 41 n.c.
+;     a3 | 30   35 | /roml          a4 30 / / / /     |     \ \ \ \ 40 test
+;     a2 | 31   34 | /romh           a3 31 / / /      |      \ \ \ 39 vss
+;     a1 | 32   33 | a0               a2 32 / /       |       \ \ 38 vcc
+;        |_________|                   a1 33 /        |        \ 37 /romsel
+;                                       a0 34         |         36 /roml
+;                                                     35 /romh
+;
+; Basically, half of the pins (the low numbers) are for talking to the c64/c128
+; and the other half (the high numbers) are for talking to the REU's own RAM.
+; "/romh", "/roml" and "/romsel" are just the inputs and the output of a simple
+; AND gate, the result is used to select the EPROM socket.

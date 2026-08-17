@@ -1,0 +1,2 @@
+	*=$1000
+		lda #""	; -> "String length is not 1."

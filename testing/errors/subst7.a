@@ -1,0 +1,5 @@
+	*=$1000
+	!set inner = 6
+	!set outer = "?(inner)"
+	; substitution results are not substituted again
+base?(outer)	nop	; -> "syntax error"

@@ -31,46 +31,56 @@
 		cle		; 02
 		see		; 03
 		tsy		; 0b
-		lbpl * + 2	; 13
+		lbpl * + 32770	; 13
 		inz		; 1b
 		jsr ($2222)	; 22
 		jsr ($2323, x)	; 23
 		tys		; 2b
-		lbmi * + 2	; 33
+		lbmi * + 32770	; 33
 		dez		; 3b
 		neg		; 42
 		asr		; 43
 		asr $44		; 44
 		taz		; 4b
-		lbvc * + 2	; 53
+		lbvc * + 32770	; 53
 		asr $54, x	; 54
 		tab		; 5b
 ;		aug		; 5c	this is different between 65ce02 and 4502
 		rtn #$62	; 62
 		bsr * + 2	; 63
 		tza		; 6b
-		lbvs * + 2	; 73
+		lbvs * + 32770	; 73
 		tba		; 7b
 		sta ($82, s), y	; 82
-		lbra * + 2	; 83
+		lbra * + 32770	; 83
 		sty $8b8b, x	; 8b
-		lbcc * + 2	; 93
+		lbcc * + 32770	; 93
 		stx $9b9b, y	; 9b
 		ldz #$62	; a3
 		ldz $abab	; ab
-		lbcs * + 2	; b3
+		lbcs * + 32770	; b3
 		ldz $8b8b, x	; bb
 		cpz #$62	; c2
 		dew $44		; c3
 		asw $abab	; cb
-		lbne * + 2	; d3
+		lbne * + 32770	; d3
 		cpz $44		; d4
 		phz		; db
 		cpz $abab	; dc
 		lda ($82, s), y	; e2
 		inw $44		; e3
 		row $abab	; eb
-		lbeq * + 2	; f3
+		lbeq * + 32770	; f3
 		phw #$f4f4	; f4
 		plz		; fb
 		phw $abab	; fc
+	; aliases to enforce branch opcodes with 16-bit offsets:
+		lbpl * + 2	; 13
+		lbmi * + 2	; 33
+		lbvc * + 2	; 53
+		lbvs * + 2	; 73
+		lbra * + 2	; 83
+		lbcc * + 2	; 93
+		lbcs * + 2	; b3
+		lbne * + 2	; d3
+		lbeq * + 2	; f3

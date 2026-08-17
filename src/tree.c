@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2021 Marco Baye
+// Copyright (C) 1998-2024 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // tree stuff
@@ -65,7 +65,7 @@ static void tree_from_list(struct ronode **tree, struct ronode *table_to_add)
 // tree item that matches the given data (HashValue and DynaBuf-String).
 // Store "body" component in node_body and return TRUE.
 // Return FALSE if no matching item found.
-int Tree_easy_scan(struct ronode *tree, void **node_body, struct dynabuf *dyna_buf)
+int tree_easy_scan(struct ronode *tree, void **node_body, struct dynabuf *dyna_buf)
 {
 	struct ronode	wanted;	// temporary storage
 	const char	*p1,
@@ -121,7 +121,7 @@ int Tree_easy_scan(struct ronode *tree, void **node_body, struct dynabuf *dyna_b
 // a new tree item, link to tree, fill with data and store its pointer. If the
 // "create" flag is zero, store NULL as result.
 // Returns whether item was created.
-int Tree_hard_scan(struct rwnode **result, struct rwnode **forest, int id_number, boolean create)
+int tree_hard_scan(struct rwnode **result, struct rwnode **forest, int id_number, boolean create)
 {
 	struct ronode	wanted;	// temporary storage
 	struct rwnode	**current_node;
@@ -179,7 +179,7 @@ int Tree_hard_scan(struct rwnode **result, struct rwnode **forest, int id_number
 	new_leaf_node->less_than_or_equal = NULL;
 	new_leaf_node->hash_value = wanted.hash_value;
 	new_leaf_node->id_number = id_number;
-	new_leaf_node->id_string = DynaBuf_get_copy(GlobalDynaBuf);	// make permanent copy
+	new_leaf_node->id_string = dynabuf_get_copy(GlobalDynaBuf);	// make permanent copy
 	// add new leaf to tree
 	*current_node = new_leaf_node;
 	// store pointer to new node in result location
@@ -200,8 +200,8 @@ static void dump_tree(struct rwnode *node, int id_number, void (*fn)(struct rwno
 		dump_tree(node->less_than_or_equal, id_number, fn, env);
 }
 
-// Call Tree_dump_tree for each non-zero entry of the given tree table.
-void Tree_dump_forest(struct rwnode **forest, int id_number, void (*fn)(struct rwnode *, FILE *), FILE *env)
+// call dump_tree for each non-zero entry of the given tree table.
+void tree_dump_forest(struct rwnode **forest, int id_number, void (*fn)(struct rwnode *, FILE *), FILE *env)
 {
 	int	ii;
 

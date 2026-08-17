@@ -143,6 +143,7 @@
 	"!le32"		pseudo
 	"!be32"		pseudo
 	"!tx"		pseudo
+	"!txt"		pseudo
 	"!text"		pseudo
 	"!raw"		pseudo
 	"!pet"		pseudo
@@ -185,6 +186,8 @@
 	"!rl"		pseudo
 	"!rs"		pseudo
 	"!initmem"	pseudo
+	"!debug"	pseudo
+	"!info"		pseudo
 	"!warn"		pseudo
 	"!error"	pseudo
 	"!serious"	pseudo

@@ -1,0 +1,7 @@
+
+; "!return" in a file is not supposed to return from a macro outside the file:
+	!macro testmacro {
+		!src "returnnotwithinamacro1.a"	; -> "!return not within a macro"
+	}
+
+	+testmacro

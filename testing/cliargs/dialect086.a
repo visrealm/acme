@@ -1,0 +1,6 @@
+	; "power of" is left-associative, becomes right-associative in 0.94.6:
+	!if 2^3^4 != (2^3)^4 {
+		!error "power-of operator is not left-associative."
+	}
+
+	!src "dialect09406.a"

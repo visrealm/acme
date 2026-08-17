@@ -1,0 +1,1 @@
+	!to "dummy.o"	; -> "Used "!to" without file format indicator."

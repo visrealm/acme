@@ -1,0 +1,2 @@
+	*=$1000
+	!fill 3, [0]	; -> "Expression did not return a number."

@@ -1,0 +1,26 @@
+
+	!for @n in [2, 3] {
+		!if @n == 3 {
+			!error "!break does not leave the loop"
+		}
+		!if 1 {
+			!break
+		}
+		!error "!break is ignored"
+	}
+	!for @n in [2, 3] {
+		!if 1 {
+			!continue
+		}
+		!error "!continue does not skip the remainder of the block"
+	}
+	!macro testmacro {
+		!for @n in [2, 3] {
+			!if 1 {
+				!return
+			}
+			!error "!return does not leave the block"
+		}
+		!error "!return does not leave all blocks"
+	}
+	+testmacro

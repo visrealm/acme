@@ -1,0 +1,3 @@
+
+	!pseudopc $8000 {	; -> "Program counter undefined."
+	}

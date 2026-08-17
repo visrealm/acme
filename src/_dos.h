@@ -1,5 +1,5 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2025 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // Platform specific stuff (in this case, for DOS, OS/2 and Windows)
@@ -7,31 +7,29 @@
 #define platform_H
 
 
-#include "config.h"
-
-
 // symbolic constants and macros
 
 // called once on program startup (could register exit handler, if needed)
-#define PLATFORM_INIT		DOS_entry()
+#define PLATFORM_INIT		platform_read_env_var()
 
-// convert UNIX-style pathname to DOS-style pathname
-#define PLATFORM_CONVERTPATH(p)	DOS_convert_path(p)
-
-// directory separator for include paths
+// directory separators for search paths
 #define DIRECTORY_SEPARATOR	'\\'
+#define ALTERNATIVE_DIR_SEP	'\\'	// dummy
 
 // string containing the prefix for accessing files from the library tree
-#define PLATFORM_LIBPREFIX	DOS_lib_prefix
+// (use "--libpath" cli switch or "ACME" environment variable to set this)
+#define PLATFORM_LIBPREFIX	NULL
+#define PLATFORM_USE_ENV_VAR	1	// library access needs "ACME" environment variable
 
 // setting file types of created files
 #define PLATFORM_SETFILETYPE_APPLE(a)
 #define PLATFORM_SETFILETYPE_CBM(a)
 #define PLATFORM_SETFILETYPE_PLAIN(a)
-#define PLATFORM_SETFILETYPE_HEX(a)
 #define PLATFORM_SETFILETYPE_TEXT(a)
+#define PLATFORM_SETFILETYPE_HEX(a)
 
 // platform specific message output
+#define PLATFORM_INFO(a)
 #define PLATFORM_WARNING(a)
 #define PLATFORM_ERROR(a)
 #define PLATFORM_SERIOUS(a)
@@ -50,16 +48,6 @@ do {				\
 // processing of platform-specific command line switches
 #define PLATFORM_SHORTOPTION_CODE
 #define PLATFORM_LONGOPTION_CODE
-
-
-// variables
-extern char *DOS_lib_prefix;	// header string of library tree
-
-
-// used as PLATFORM_INIT: reads "ACME" environment variable
-extern void DOS_entry(void);
-// Convert UNIX-style pathname to DOS-style pathname
-extern void DOS_convert_path(char *p);
 
 
 #endif

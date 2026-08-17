@@ -1,12 +1,12 @@
 // ACME - a crossassembler for producing 6502/65c02/65816/65ce02 code.
-// Copyright (C) 1998-2020 Marco Baye
+// Copyright (C) 1998-2025 Marco Baye
 // Have a look at "acme.c" for further info
 //
 // pseudo opcode stuff
 #include "pseudoopcodes.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include "acme.h"
+#include <string.h>	// for memcpy()
 #include "config.h"
 #include "cpu.h"
 #include "alu.h"
@@ -23,6 +23,22 @@
 #include "typesystem.h"
 
 
+// TODO - make new, keyword-based argument parser for !bin, !fill and !align
+// helper function to support switching from positional arguments to keyword arguments
+static boolean line_uses_keyword_arguments(void)
+{
+	// to be on the safe side, return FALSE if dialect < 0.98!
+//	if (config.dialect < V0_98__PATHS_AND_SYMBOLCHANGE)
+//		return FALSE;
+//
+//
+	// read line to buffer, check if it begins with '[a-zA-Z]+='
+	// change input to RAM, return result
+	// ...and the caller needs to pass us some struct so it can change input back later on!
+	return FALSE;
+}
+
+
 // different ways to handle end-of-statement:
 enum eos {
 	SKIP_REMAINDER,		// skip remainder of line - (after errors)
@@ -32,58 +48,18 @@ enum eos {
 };
 
 // constants
-static const char	exception_unknown_pseudo_opcode[]	= "Unknown pseudo opcode.";
+static const char	exception_want_IN_or_comma[]	= "Expected ',' or IN keyword after loop variable.";
 
 
-// this is not really a pseudo opcode, but similar enough to be put here:
-// called when "*= EXPRESSION" is parsed, to set the program counter
-void notreallypo_setpc(void)	// GotByte is '*'
+// helper function, just for old, deprecated, obsolete, stupid "realpc":
+static void end_all_pseudopc(void)
 {
-	bits		segment_flags	= 0;
-	struct number	intresult;
-
-	// next non-space must be '='
-	NEXTANDSKIPSPACE();
-	if (GotByte != '=') {
-		Throw_error(exception_syntax);
-		goto fail;
-	}
-
-	GetByte();
-	ALU_defined_int(&intresult);	// read new address
-	// check for modifiers
-	while (Input_accept_comma()) {
-		// parse modifier. if no keyword given, give up
-		if (Input_read_and_lower_keyword() == 0)
-			goto fail;
-
-		if (strcmp(GlobalDynaBuf->buffer, "overlay") == 0) {
-			segment_flags |= SEGMENT_FLAG_OVERLAY;
-		} else if (strcmp(GlobalDynaBuf->buffer, "invisible") == 0) {
-			segment_flags |= SEGMENT_FLAG_INVISIBLE;
-/*TODO		} else if (strcmp(GlobalDynaBuf->buffer, "limit") == 0) {
-			skip '='
-			read memory limit
-		} else if (strcmp(GlobalDynaBuf->buffer, "stay" or "same" or something like that) == 0) {
-			mutually exclusive with all other arguments!
-			this would mean to keep all previous segment data,
-			so it could be used with "*=*-5" or "*=*+3"
-		} else if (strcmp(GlobalDynaBuf->buffer, "name") == 0) {
-			skip '='
-			read segment name (quoted string!)	*/
-		} else {
-			Throw_error("Unknown \"*=\" segment modifier.");
-			goto fail;
-		}
-	}
-	vcpu_set_pc(intresult.val.intval, segment_flags);
-	// TODO - allow block syntax, so it is possible to put data "somewhere else" and then return to old position?
-	Input_ensure_EOS();
-	return;
-
-fail:
-	Input_skip_remainder();
+	while (pseudopc_isactive())
+		pseudopc_end();
 }
+
+
+// "configuration" pseudo opcodes (can be overridden by cli arguments):
 
 
 // define default value for empty memory ("!initmem" pseudo opcode)
@@ -91,21 +67,150 @@ static enum eos po_initmem(void)
 {
 	struct number	intresult;
 
-	// ignore in all passes but in first
-	if (!FIRST_PASS)
+	// ignore in later passes
+	if (pass.number != 1)
 		return SKIP_REMAINDER;
 
-	// get value
+	// the "--initmem" cli arg and earlier calls have priority
+	if (config.mem_init_value != NO_VALUE_GIVEN) {
+		throw_warning("Memory already initialised.");
+		return SKIP_REMAINDER;
+	}
+
+	// read value
+	// (allowing undefined values in future versions does not make sense,
+	// because all "configuration pseudo opcodes" should be skipped after
+	// first pass)
 	ALU_defined_int(&intresult);
 	if ((intresult.val.intval > 255) || (intresult.val.intval < -128))
-		Throw_error(exception_number_out_of_8b_range);
-	if (output_initmem(intresult.val.intval & 0xff))
+		throw_error(exception_number_out_of_8b_range);
+
+	// remember value
+	config.mem_init_value = intresult.val.intval & 0xff;
+
+	return ENSURE_EOS;
+}
+
+// select output file name and format ("!to" pseudo opcode)
+static enum eos po_to(void)
+{
+	enum outfile_format	format;
+
+	// ignore in later passes
+	if (pass.number != 1)
 		return SKIP_REMAINDER;
+
+	// the "--outfile" cli arg and earlier calls have priority
+	if (config.output_filename) {
+		throw_warning("Output file name already chosen.");
+		return SKIP_REMAINDER;
+	}
+
+	// read filename to global dynamic buffer
+	// if no file name given, exit (complaining will have been done)
+	if (input_read_output_filename())
+		return SKIP_REMAINDER;
+
+	// get malloc'd copy of filename
+	config.output_filename = dynabuf_get_copy(GlobalDynaBuf);
+
+	// select output format
+	if (parser_accept_comma()) {
+		// parse output format name
+		// if no keyword given, give up
+		if (parser_read_and_lower_keyword() == 0)
+			return SKIP_REMAINDER;	// "Expected keyword" error has already been thrown
+
+		format = outputformat_find();
+		if (format == OUTFILE_FORMAT_UNSPECIFIED) {
+			throw_error("Unknown output format.");
+			return SKIP_REMAINDER;
+		}
+	} else {
+		// no comma: complain unless user requested really old behaviour
+		if (config.dialect >= V0_86__DEPRECATE_REALPC) {
+			throw_warning("Used \"!to\" without file format indicator.");
+		} else {
+			// older versions did not complain
+		}
+		// default to cbm
+		format = OUTFILE_FORMAT_CBM;
+	}
+
+	// the "--format" cli arg has priority
+	if (config.outfile_format != OUTFILE_FORMAT_UNSPECIFIED) {
+		throw_warning("Output file format already chosen.");
+	} else {
+		config.outfile_format = format;
+	}
+
+	return ENSURE_EOS;
+}
+
+// set file name for symbol list
+static enum eos po_symbollist(void)
+{
+	// ignore in later passes
+	if (pass.number != 1)
+		return SKIP_REMAINDER;
+
+	// cli arg and earlier calls have priority
+	if (config.symbollist_filename) {
+		throw_warning("Symbol list file name already chosen.");
+		return SKIP_REMAINDER;
+	}
+
+	// read filename to global dynamic buffer
+	// if no file name given, exit (complaining will have been done)
+	if (input_read_output_filename())
+		return SKIP_REMAINDER;
+
+	// get malloc'd copy of filename
+	config.symbollist_filename = dynabuf_get_copy(GlobalDynaBuf);
+
 	return ENSURE_EOS;
 }
 
 
+// set start and end (can also be overwritten by cli args):
+
+
+// use current outbuf index as "first byte of output file"
+static enum eos po_outfilestart(void)
+{
+	static int	last_pass_number	= -1;
+
+	if ((config.outfile_start != NO_VALUE_GIVEN)
+	|| (last_pass_number == pass.number)) {
+		throw_pass1_warning("Start of output file already chosen.");
+	} else {
+		last_pass_number = pass.number;
+		outbuf_set_outfile_start();
+	}
+	return ENSURE_EOS;
+}
+
+// use current outbuf index as "end+1 of output file"
+static enum eos po_outfilelimit(void)
+{
+	static int	last_pass_number	= -1;
+
+	if ((config.outfile_limit != NO_VALUE_GIVEN)
+	|| (last_pass_number == pass.number)) {
+		throw_pass1_warning("End of output file already chosen.");
+	} else {
+		last_pass_number = pass.number;
+		outbuf_set_outfile_limit();
+	}
+	return ENSURE_EOS;
+}
+
+
+// "real" pseudo opcodes:
+
+
 // change output "encryption" ("!xor" pseudo opcode)
+// (allows for block, so must be reentrant)
 static enum eos po_xor(void)
 {
 	char		old_value;
@@ -114,59 +219,14 @@ static enum eos po_xor(void)
 	old_value = output_get_xor();
 	ALU_any_int(&change);
 	if ((change > 255) || (change < -128)) {
-		Throw_error(exception_number_out_of_8b_range);
+		throw_error(exception_number_out_of_8b_range);
 		change = 0;
 	}
 	output_set_xor(old_value ^ change);
 	// if there's a block, parse that and then restore old value!
-	if (Parse_optional_block())
+	if (parse_optional_block())
 		output_set_xor(old_value);
 	return ENSURE_EOS;
-}
-
-
-// select output file and format ("!to" pseudo opcode)
-static enum eos po_to(void)
-{
-	// bugfix: first read filename, *then* check for first pass.
-	// if skipping right away, quoted colons might be misinterpreted as EOS
-	// FIXME - fix the skipping code to handle quotes! :)
-	// "!sl" has been fixed as well
-
-	// read filename to global dynamic buffer
-	// if no file name given, exit (complaining will have been done)
-	if (Input_read_filename(FALSE, NULL))
-		return SKIP_REMAINDER;
-
-	// only act upon this pseudo opcode in first pass
-	if (!FIRST_PASS)
-		return SKIP_REMAINDER;
-
-	if (outputfile_set_filename())
-		return SKIP_REMAINDER;
-
-	// select output format
-	// if no comma found, use default file format
-	if (Input_accept_comma() == FALSE) {
-		if (outputfile_prefer_cbm_format()) {
-			// output deprecation warning (unless user requests really old behaviour)
-			if (config.wanted_version >= VER_DEPRECATE_REALPC)
-				Throw_warning("Used \"!to\" without file format indicator. Defaulting to \"cbm\".");
-		}
-		return ENSURE_EOS;
-	}
-
-	// parse output format name
-	// if no keyword given, give up
-	if (Input_read_and_lower_keyword() == 0)
-		return SKIP_REMAINDER;
-
-	if (outputfile_set_format()) {
-		// error occurred
-		Throw_error("Unknown output format.");
-		return SKIP_REMAINDER;
-	}
-	return ENSURE_EOS;	// success
 }
 
 
@@ -182,7 +242,7 @@ static enum eos iterate(void (*fn)(intval_t))
 	do {
 		ALU_any_result(&object);
 		output_object(&object, &iter);
-	} while (Input_accept_comma());
+	} while (parser_accept_comma());
 	return ENSURE_EOS;
 }
 
@@ -197,7 +257,7 @@ static enum eos po_byte(void)
 // Insert 16-bit values ("!16" / "!wo" / "!word" pseudo opcode)
 static enum eos po_16(void)
 {
-	return iterate((CPU_state.type->flags & CPUFLAG_ISBIGENDIAN) ? output_be16 : output_le16);
+	return iterate((cpu_current_type->flags & CPUFLAG_ISBIGENDIAN) ? output_be16 : output_le16);
 }
 // Insert 16-bit values big-endian ("!be16" pseudo opcode)
 static enum eos po_be16(void)
@@ -214,7 +274,7 @@ static enum eos po_le16(void)
 // Insert 24-bit values ("!24" pseudo opcode)
 static enum eos po_24(void)
 {
-	return iterate((CPU_state.type->flags & CPUFLAG_ISBIGENDIAN) ? output_be24 : output_le24);
+	return iterate((cpu_current_type->flags & CPUFLAG_ISBIGENDIAN) ? output_be24 : output_le24);
 }
 // Insert 24-bit values big-endian ("!be24" pseudo opcode)
 static enum eos po_be24(void)
@@ -231,7 +291,7 @@ static enum eos po_le24(void)
 // Insert 32-bit values ("!32" pseudo opcode)
 static enum eos po_32(void)
 {
-	return iterate((CPU_state.type->flags & CPUFLAG_ISBIGENDIAN) ? output_be32 : output_le32);
+	return iterate((cpu_current_type->flags & CPUFLAG_ISBIGENDIAN) ? output_be32 : output_le32);
 }
 // Insert 32-bit values big-endian ("!be32" pseudo opcode)
 static enum eos po_be32(void)
@@ -253,7 +313,7 @@ static enum eos po_hex(void)	// now GotByte = illegal char
 
 	for (;;) {
 		if (digits == 2) {
-			Output_byte(byte);
+			output_byte(byte);
 			digits = 0;
 			byte = 0;
 		}
@@ -278,7 +338,7 @@ static enum eos po_hex(void)	// now GotByte = illegal char
 		// if we're here, the current character is not a hex digit,
 		// which is only allowed outside of pairs:
 		if (digits == 1) {
-			Throw_error("Hex digits are not given in pairs.");
+			throw_error("Hex digits are not given in pairs.");
 			return SKIP_REMAINDER;	// error exit
 		}
 		switch (GotByte) {
@@ -289,7 +349,7 @@ static enum eos po_hex(void)	// now GotByte = illegal char
 		case CHAR_EOS:
 			return AT_EOS_ANYWAY;	// normal exit
 		default:
-			Throw_error(exception_syntax);	// all other characters are errors
+			throw_error(exception_syntax);	// FIXME - include character in error message!
 			return SKIP_REMAINDER;	// error exit
 		}
 	}
@@ -299,30 +359,45 @@ static enum eos po_hex(void)	// now GotByte = illegal char
 // "!cbm" pseudo opcode (now obsolete)
 static enum eos po_cbm(void)
 {
-	if (config.wanted_version >= VER_DISABLED_OBSOLETE_STUFF) {
-		Throw_error("\"!cbm\" is obsolete; use \"!ct pet\" instead.");
+	if (config.dialect >= V0_94_8__DISABLED_OBSOLETE) {
+		throw_error("\"!cbm\" is obsolete; use \"!ct pet\" instead.");
 	} else {
 		encoder_current = &encoder_pet;
-		Throw_first_pass_warning("\"!cbm\" is deprecated; use \"!ct pet\" instead.");
+		throw_finalpass_warning("\"!cbm\" is deprecated; use \"!ct pet\" instead.");
 	}
 	return ENSURE_EOS;
 }
 
 // read encoding table from file
-static enum eos user_defined_encoding(FILE *stream)
+// (allows for block, so must be reentrant)
+static enum eos use_encoding_from_file(void)
 {
+	struct filespecflags	flags;
+	FILE			*stream;
 	unsigned char		local_table[256],
-				*buffered_table		= encoding_loaded_table;
-	const struct encoder	*buffered_encoder	= encoder_current;
+				*buffered_table;
+	const struct encoder	*buffered_encoder;
 
+	// read file name and convert from UNIX style to platform style
+	if (input_read_input_filename(&flags))
+		return SKIP_REMAINDER;	// if missing or unterminated, give up
+
+	// read from file
+	stream = includepaths_open_ro(&flags);
 	if (stream) {
-		encoding_load_from_file(local_table, stream);
+		// try to load encoding table from given file
+		if (fread(local_table, sizeof(char), 256, stream) != 256)
+			throw_error("Conversion table incomplete.");
 		fclose(stream);
 	}
-	encoder_current = &encoder_file;	// activate new encoding
-	encoding_loaded_table = local_table;		// activate local table
+
+	// now switch encoding
+	buffered_encoder = encoder_current;
+	encoder_current = &encoder_file;
+	buffered_table = encoding_loaded_table;
+	encoding_loaded_table = local_table;
 	// if there's a block, parse that and then restore old values
-	if (Parse_optional_block()) {
+	if (parse_optional_block()) {
 		encoder_current = buffered_encoder;
 	} else {
 		// if there's *no* block, the table must be used from now on.
@@ -335,43 +410,59 @@ static enum eos user_defined_encoding(FILE *stream)
 }
 
 // use one of the pre-defined encodings (raw, pet, scr)
-static enum eos predefined_encoding(void)
+// (allows for block, so must be reentrant)
+static enum eos use_predefined_encoding(const struct encoder *new_encoder)
 {
 	unsigned char		local_table[256],
-				*buffered_table		= encoding_loaded_table;
-	const struct encoder	*buffered_encoder	= encoder_current;
+				*buffered_table;
+	const struct encoder	*buffered_encoder;
 
-	if (Input_read_and_lower_keyword()) {
-		const struct encoder	*new_encoder	= encoding_find();
-
-		if (new_encoder)
-			encoder_current = new_encoder;	// activate new encoder
-	}
-	encoding_loaded_table = local_table;	// activate local table
+	// switch encoding
+	buffered_encoder = encoder_current;
+	encoder_current = new_encoder;
+	buffered_table = encoding_loaded_table;
+	encoding_loaded_table = local_table;
 	// if there's a block, parse that and then restore old values
-	if (Parse_optional_block())
+	if (parse_optional_block())
 		encoder_current = buffered_encoder;
 	// re-activate "outer" table
 	encoding_loaded_table = buffered_table;
 	return ENSURE_EOS;
 }
+
 // set current encoding ("!convtab" pseudo opcode)
+// (allows for block, so must be reentrant)
 static enum eos po_convtab(void)
 {
-	boolean	uses_lib;
-	FILE	*stream;
+	// is file name given old-style, without "file" keyword?
+	if ((GotByte == '<') || (GotByte == '"'))
+		return use_encoding_from_file();
 
-	if ((GotByte == '<') || (GotByte == '"')) {
-		// encoding table from file
-		if (Input_read_filename(TRUE, &uses_lib))
-			return SKIP_REMAINDER;	// missing or unterminated file name
+	// expect keyword: either one of the pre-defined encodings or
+	// "file" with a filename argument:
+	if (parser_read_and_lower_keyword() == 0)
+		return SKIP_REMAINDER;	// "Expected keyword" error has already been thrown
 
-		stream = includepaths_open_ro(uses_lib);
-		return user_defined_encoding(stream);
-	} else {
-		// one of the pre-defined encodings
-		return predefined_encoding();
+	// now check for known keywords:
+	if (strcmp(GlobalDynaBuf->buffer, "pet") == 0)
+		return use_predefined_encoding(&encoder_pet);
+
+	if (strcmp(GlobalDynaBuf->buffer, "raw") == 0)
+		return use_predefined_encoding(&encoder_raw);
+
+	if (strcmp(GlobalDynaBuf->buffer, "scr") == 0)
+		return use_predefined_encoding(&encoder_scr);
+
+	if (strcmp(GlobalDynaBuf->buffer, "file") == 0) {
+		SKIPSPACE();
+		if (!parser_expect('=')) {
+			return SKIP_REMAINDER;
+		}
+		return use_encoding_from_file();
 	}
+
+	throw_error("Unknown encoding.");
+	return use_predefined_encoding(encoder_current);	// keep going
 }
 // insert string(s)
 static enum eos encode_string(const struct encoder *inner_encoder, unsigned char xor)
@@ -379,41 +470,42 @@ static enum eos encode_string(const struct encoder *inner_encoder, unsigned char
 	const struct encoder	*outer_encoder	= encoder_current;	// buffer encoder
 	struct iter_context	iter;
 	struct object		object;
+	int			offset;
 
 	iter.fn = output_8;
 	iter.accept_long_strings = TRUE;
 	iter.stringxor = xor;
-	// make given encoder the current one (for ALU-parsed values)
+	// make given encoder the current one (for ALU-parsed values of character codes)
 	encoder_current = inner_encoder;
-	do {
-		// we need to keep the old string handler code, because if user selects
-		// older dialect, the new code will complain about string lengths > 1!
-		if ((GotByte == '"') && (config.wanted_version < VER_BACKSLASHESCAPING)) {
-			// the old way of handling string literals:
-			int	offset;
-
-			DYNABUF_CLEAR(GlobalDynaBuf);
-			if (Input_quoted_to_dynabuf('"'))
-				return SKIP_REMAINDER;	// unterminated or escaping error
-
-			// eat closing quote
-			GetByte();
-			// now convert to unescaped version
-			if (Input_unescape_dynabuf(0))
-				return SKIP_REMAINDER;	// escaping error
-
-			// send characters
-			for (offset = 0; offset < GlobalDynaBuf->size; ++offset)
-				output_8(xor ^ encoding_encode_char(GLOBALDYNABUF_CURRENT[offset]));
-		} else {
-			// handle everything else (also strings in newer dialects):
-			// parse value. no problems with single characters because the
-			// current encoding is temporarily set to the given one.
+	// algo depends on dialect:
+	if (config.dialect >= V0_97__BACKSLASH_ESCAPING) {
+		// since v0.97 the expression parser supports strings, so we pass all args to it:
+		do {
 			ALU_any_result(&object);
 			output_object(&object, &iter);
-		}
-	} while (Input_accept_comma());
-	encoder_current = outer_encoder;	// reactivate buffered encoder
+		} while (parser_accept_comma());
+	} else {
+		// in older versions the expression parser complained about
+		// strings longer than one character, so we assumed everything
+		// starting with a doublequote is a string literal and handled
+		// those separately:
+		do {
+			if (GotByte == '"') {
+				// string literal
+				if (input_read_string_literal('"'))
+					break;	// unterminated
+				// send characters
+				for (offset = 0; offset < GlobalDynaBuf->size; ++offset)
+					output_8(xor ^ encoding_encode_char(GLOBALDYNABUF_CURRENT[offset]));
+			} else {
+				// everything else is passed to expression parser:
+				ALU_any_result(&object);
+				output_object(&object, &iter);
+			}
+		} while (parser_accept_comma());
+	}
+	// reactivate buffered encoder:
+	encoder_current = outer_encoder;
 	return ENSURE_EOS;
 }
 // insert text string (default format)
@@ -442,87 +534,107 @@ static enum eos po_scrxor(void)
 	intval_t	xor;
 
 	ALU_any_int(&xor);
-	if (Input_accept_comma() == FALSE) {
-		Throw_error(exception_syntax);
-		return SKIP_REMAINDER;
+	if (parser_expect(',')) {
+		return encode_string(&encoder_scr, xor);
 	}
-	return encode_string(&encoder_scr, xor);
+	return SKIP_REMAINDER;
 }
 
-// include binary file ("!binary" pseudo opcode)
-// FIXME - split this into "parser" and "worker" fn and move worker fn somewhere else.
-static enum eos po_binary(void)
+// "backend" function for "!binary"
+static void include_file(FILE *stream, intval_t size, intval_t offset)
 {
-	boolean		uses_lib;
-	FILE		*stream;
-	int		byte;
-	struct number	size,
-			skip;
+	int	byte,
+		amount;
 
-	size.val.intval = -1;	// means "not given" => "until EOF"
-	skip.val.intval	= 0;
-
-	// if file name is missing, don't bother continuing
-	if (Input_read_filename(TRUE, &uses_lib))
-		return SKIP_REMAINDER;
-
-	// try to open file
-	stream = includepaths_open_ro(uses_lib);
-	if (stream == NULL)
-		return SKIP_REMAINDER;
-
-	// read optional arguments
-	if (Input_accept_comma()) {
-		// any size given?
-		if ((GotByte != ',') && (GotByte != CHAR_EOS)) {
-			// then parse it
-			ALU_defined_int(&size);
-			if (size.val.intval < 0)
-				Throw_serious_error(exception_negative_size);
-		}
-		// more?
-		if (Input_accept_comma()) {
-			// any skip given?
-			if (GotByte != CHAR_EOS) {
-				// then parse it
-				ALU_defined_int(&skip);
-			}
-		}
-	}
 	// check whether including is a waste of time
 	// FIXME - future changes ("several-projects-at-once")
 	// may be incompatible with this!
-	if ((size.val.intval >= 0) && (pass.undefined_count || pass.error_count)) {
-	//if ((size.val.intval >= 0) && (pass.needvalue_count || pass.error_count)) {	FIXME - use!
-		output_skip(size.val.intval);	// really including is useless anyway
-	} else {
-		// really insert file
-		fseek(stream, skip.val.intval, SEEK_SET);	// set read pointer
-		// if "size" non-negative, read "size" bytes.
-		// otherwise, read until EOF.
-		while (size.val.intval != 0) {
-			byte = getc(stream);
-			if (byte == EOF)
-				break;
-			Output_byte(byte);
-			--size.val.intval;
+	if ((size >= 0) && (!pass.flags.generate_output)) {
+		// no need to read actual data from file, so use zeroes instead.
+		// do not call output_skip()! we want this area to be included
+		// when calculating outbuf size, even if at start/end!
+		while (size != 0) {
+			output_byte(0);
+			--size;
 		}
-		// if more should have been read, warn and add padding
-		if (size.val.intval > 0) {
-			Throw_warning("Padding with zeroes.");
-			do
-				Output_byte(0);
-			while (--size.val.intval);
-		}
+		return;
 	}
-	fclose(stream);
-	// if verbose, produce some output
-	if (FIRST_PASS && (config.process_verbosity > 1)) {
-		int	amount	= vcpu_get_statement_size();
 
-		printf("Loaded %d (0x%04x) bytes from file offset %ld (0x%04lx).\n",
-			amount, amount, skip.val.intval, skip.val.intval);
+	// really insert file
+	fseek(stream, offset, SEEK_SET);	// set read pointer
+	// read "size" bytes. if size is "NO_VALUE_GIVEN" (which is -1),
+	// decrementing it won't give zero, so we'll read until EOF,
+	// which is exactly what we want if no size was given:
+	while (size != 0) {
+		byte = getc(stream);
+		if (byte == EOF)
+			break;
+		output_byte(byte);
+		--size;
 	}
+	// if more should have been read, warn and add padding
+	if (size > 0) {
+		throw_warning("Padding with zeroes.");
+		do {
+			output_byte(0);
+		} while (--size);
+	}
+	// if verbose, produce some output
+	if (config.process_verbosity >= 2) {
+		amount = output_get_statement_size();
+		printf("Loaded %d (0x%04x) bytes from file offset %d (0x%04x).\n",
+			amount, amount, offset, offset);
+	}
+}
+// include binary file ("!binary" pseudo opcode)
+static enum eos po_binary(void)
+{
+	struct filespecflags	flags;
+	FILE		*stream;
+	struct number	arg;
+	intval_t	size	= NO_VALUE_GIVEN,	// means "until EOF"
+			skip	= 0;
+
+	// read file name and convert from UNIX style to platform style
+	if (input_read_input_filename(&flags))
+		return SKIP_REMAINDER;	// if missing or unterminated, give up
+
+	// try to open file
+	stream = includepaths_open_ro(&flags);
+	if (stream == NULL)
+		return SKIP_REMAINDER;
+
+	// any more arguments?
+	if (parser_accept_comma()) {
+		if (line_uses_keyword_arguments()) {
+			// read keyword arguments
+			// TODO!
+			BUG("KeywordArgsNotYet", 0);
+		} else {
+			// read old-style, positional arguments:
+			if ((GotByte != ',') && (GotByte != CHAR_EOS)) {
+				// first arg is "size"
+				ALU_defined_int(&arg);
+				size = arg.val.intval;
+				// CAUTION: do not move this check elsewhere,
+				// because the default value -1 is ok!
+				if (size < 0)
+					throw_serious_error(exception_negative_size);
+			}
+			// more?
+			if (parser_accept_comma()) {
+				// second arg is "skip"
+				if (GotByte != CHAR_EOS) {
+					// then parse it
+					ALU_defined_int(&arg);
+					skip = arg.val.intval;
+				}
+			}
+		}
+	}
+	// FIXME - add check for "skip" and complain if negative!
+	include_file(stream, size, skip);
+	fclose(stream);
 	return ENSURE_EOS;
 }
 
@@ -533,9 +645,17 @@ static enum eos po_fill(void)
 	struct number	sizeresult;
 	intval_t	fill	= FILLVALUE_FILL;
 
-	ALU_defined_int(&sizeresult);	// FIXME - forbid addresses!
-	if (Input_accept_comma())
-		ALU_any_int(&fill);	// FIXME - forbid addresses!
+	if (line_uses_keyword_arguments()) {
+		// read keyword arguments
+		// TODO!
+		BUG("KeywordArgsNotYet", 1);
+	} else {
+		// read old-style, positional arguments:
+		ALU_defined_int(&sizeresult);	// FIXME - forbid addresses!
+		if (parser_accept_comma())
+			ALU_any_int(&fill);	// FIXME - forbid addresses!
+	}
+
 	while (sizeresult.val.intval--)
 		output_8(fill);
 	return ENSURE_EOS;
@@ -544,14 +664,13 @@ static enum eos po_fill(void)
 
 // skip over some bytes in output without starting a new segment.
 // in contrast to "*=*+AMOUNT", "!skip AMOUNT" does not start a new segment.
-// (...and it will be needed in future for assemble-to-end-address)
 static enum eos po_skip(void)	// now GotByte = illegal char
 {
 	struct number	amount;
 
 	ALU_defined_int(&amount);	// FIXME - forbid addresses!
 	if (amount.val.intval < 0)
-		Throw_serious_error(exception_negative_size);	// TODO - allow this?
+		throw_serious_error(exception_negative_size);	// TODO - allow this?
 	else
 		output_skip(amount.val.intval);
 	return ENSURE_EOS;
@@ -559,34 +678,43 @@ static enum eos po_skip(void)	// now GotByte = illegal char
 
 
 // insert byte until PC fits condition
+// TODO:
+// now: "!align ANDVALUE, EQUALVALUE [,FILLVALUE]"
+// in future: use keyword arguments so "!align fillvalue=17, blocksize=64" is
+// possible (where blocksize must be a power of two)
 static enum eos po_align(void)
 {
-	struct number	andresult,
-			equalresult;
-	intval_t	fill;
+	struct number	arg;
+	intval_t	andresult,
+			equalresult,
+			fill	= cpu_current_type->default_align_value;
 	struct number	pc;
 
-	// TODO:
-	// now: !align ANDVALUE, EQUALVALUE [,FILLVALUE]
-	// new: !align BLOCKSIZE
-	// ...where block size must be a power of two
-	ALU_defined_int(&andresult);	// FIXME - forbid addresses!
-	if (!Input_accept_comma())
-		Throw_error(exception_syntax);
-	ALU_defined_int(&equalresult);	// ...allow addresses (unlikely, but possible)
-	if (Input_accept_comma())
-		ALU_any_int(&fill);
-	else
-		fill = CPU_state.type->default_align_value;
+	if (line_uses_keyword_arguments()) {
+		// read keyword arguments
+		// TODO!
+		BUG("KeywordArgsNotYet", 2);
+	} else {
+		// read old-style, positional arguments:
+		ALU_defined_int(&arg);	// FIXME - forbid addresses!
+		andresult = arg.val.intval;
+		if (parser_expect(',')) {
+			// fn already does everything for us
+		}
+		ALU_defined_int(&arg);	// ...allow addresses (unlikely, but possible)
+		equalresult = arg.val.intval;
+		if (parser_accept_comma())
+			ALU_any_int(&fill);
+	}
 
 	// make sure PC is defined
-	vcpu_read_pc(&pc);
+	programcounter_read_pc(&pc);
 	if (pc.ntype == NUMTYPE_UNDEFINED) {
-		Throw_error(exception_pc_undefined);
+		throw_error(exception_pc_undefined);
 		return SKIP_REMAINDER;
 	}
 
-	while ((pc.val.intval++ & andresult.val.intval) != equalresult.val.intval)
+	while ((pc.val.intval++ & andresult) != equalresult)
 		output_8(fill);
 	return ENSURE_EOS;
 }
@@ -595,34 +723,31 @@ static enum eos po_align(void)
 // not using a block is no longer allowed
 static void old_offset_assembly(void)
 {
-	// really old versions allowed it
-	if (config.wanted_version < VER_DEPRECATE_REALPC)
-		return;
-
-	// then it was deprecated
-	if (config.wanted_version < VER_DISABLED_OBSOLETE_STUFF) {
-		Throw_first_pass_warning("\"!pseudopc/!realpc\" is deprecated; use \"!pseudopc {}\" instead.");
-		return;
+	if (config.dialect >= V0_94_8__DISABLED_OBSOLETE) {
+		// now it's obsolete
+		throw_error("\"!pseudopc/!realpc\" are obsolete; use \"!pseudopc {}\" instead.");	// FIXME - amend msg, tell user how to use old behaviour!
+	} else if (config.dialect >= V0_86__DEPRECATE_REALPC) {
+		// earlier it was deprecated
+		throw_finalpass_warning("\"!pseudopc/!realpc\" are deprecated; use \"!pseudopc {}\" instead.");
+	} else {
+		// really old versions allowed it
 	}
-
-	// now it's obsolete
-	Throw_error("\"!pseudopc/!realpc\" is obsolete; use \"!pseudopc {}\" instead.");	// FIXME - amend msg, tell user how to use old behaviour!
 }
 
 // start offset assembly
-// TODO - maybe add a label argument to assign the block size afterwards (for assemble-to-end-address) (or add another pseudo opcode)
+// (allows for block, so must be reentrant)
 static enum eos po_pseudopc(void)
 {
 	struct number	new_pc;
 
 	// get new value
-	ALU_defined_int(&new_pc);	// FIXME - allow for undefined! (complaining about non-addresses would be logical, but annoying)
+	ALU_defined_int(&new_pc);	// complaining about non-addresses would be logical, but annoying
 /* TODO - add this. check if code can be shared with "*="!
 	// check for modifiers
-	while (Input_accept_comma()) {
+	while (parser_accept_comma()) {
 		// parse modifier. if no keyword given, give up
-		if (Input_read_and_lower_keyword() == 0)
-			return SKIP_REMAINDER;
+		if (parser_read_and_lower_keyword() == 0)
+			return SKIP_REMAINDER;	// "Expected keyword" error has already been thrown
 
 		if (strcmp(GlobalDynaBuf->buffer, "limit") == 0) {
 			skip '='
@@ -631,15 +756,31 @@ static enum eos po_pseudopc(void)
 			skip '='
 			read segment name (quoted string!)
 		} else {
-			Throw_error("Unknown !pseudopc segment modifier.");
+			throw_error("Unknown !pseudopc segment modifier.");
 			return SKIP_REMAINDER;
 		}
 	}
 */
+	if (new_pc.val.intval < 0) {
+		throw_error("Program counter cannot be negative.");
+		new_pc.val.intval = cpu_current_type->dummy_pc;
+	}
 	pseudopc_start(&new_pc);
 	// if there's a block, parse that and then restore old value!
-	if (Parse_optional_block()) {
-		pseudopc_end();	// restore old state
+	if (parse_optional_block()) {
+		// restore old state
+		if (pseudopc_isactive()) {
+			pseudopc_end();
+		} else {
+			// calling pseudopc_end() here would create a segfault.
+			// the only way this point can be reached is when the user
+			// a) asked for an older dialect where "*=" disabled "!pseudopc"
+			// and
+			// b) did exactly that in the source.
+			//
+			// ...*or* it is a bug! maybe set a flag in the case above which
+			// can then be checked here, and if it isn't set, call BUG()?
+		}
 	} else {
 		old_offset_assembly();
 	}
@@ -651,75 +792,64 @@ static enum eos po_pseudopc(void)
 static enum eos po_realpc(void)
 {
 	old_offset_assembly();
-	pseudopc_end_all();	// restore outermost state
+	end_all_pseudopc();	// restore outermost state
 	return ENSURE_EOS;
 }
 
 
 // select CPU ("!cpu" pseudo opcode)
+// (allows for block, so must be reentrant)
 static enum eos po_cpu(void)
 {
-	const struct cpu_type	*cpu_buffer	= CPU_state.type;	// remember current cpu
+	const struct cpu_type	*cpu_buffer	= cpu_current_type;	// remember
 	const struct cpu_type	*new_cpu_type;
 
-	if (Input_read_and_lower_keyword()) {
+	if (parser_read_and_lower_keyword()) {
 		new_cpu_type = cputype_find();
 		if (new_cpu_type)
-			CPU_state.type = new_cpu_type;	// activate new cpu type
+			cpu_current_type = new_cpu_type;	// activate new cpu type
 		else
-			Throw_error("Unknown processor.");
+			throw_error("Unknown processor.");
 	}
 	// if there's a block, parse that and then restore old value
-	if (Parse_optional_block())
-		CPU_state.type = cpu_buffer;
+	if (parse_optional_block())
+		cpu_current_type = cpu_buffer;
 	return ENSURE_EOS;
 }
 
 
 // set register length, block-wise if needed.
+// (allows for block, so must be reentrant)
 static enum eos set_register_length(boolean *var, boolean make_long)
 {
-	int	old_size	= *var;
+	boolean	long_before	= *var;
 
 	// set new register length (or complain - whichever is more fitting)
 	vcpu_check_and_set_reg_length(var, make_long);
 	// if there's a block, parse that and then restore old value!
-	if (Parse_optional_block())
-		vcpu_check_and_set_reg_length(var, old_size);	// restore old length
+	if (parse_optional_block())
+		vcpu_check_and_set_reg_length(var, long_before);	// restore old length
 	return ENSURE_EOS;
 }
 // switch to long accumulator ("!al" pseudo opcode)
 static enum eos po_al(void)
 {
-	return set_register_length(&CPU_state.a_is_long, TRUE);
+	return set_register_length(&cpu_a_is_long, TRUE);
 }
 // switch to short accumulator ("!as" pseudo opcode)
 static enum eos po_as(void)
 {
-	return set_register_length(&CPU_state.a_is_long, FALSE);
+	return set_register_length(&cpu_a_is_long, FALSE);
 }
 // switch to long index registers ("!rl" pseudo opcode)
 static enum eos po_rl(void)
 {
-	return set_register_length(&CPU_state.xy_are_long, TRUE);
+	return set_register_length(&cpu_xy_are_long, TRUE);
 }
 // switch to short index registers ("!rs" pseudo opcode)
 static enum eos po_rs(void)
 {
-	return set_register_length(&CPU_state.xy_are_long, FALSE);
-}
-
-
-// force explicit label definitions to set "address" flag ("!addr"). Has to be re-entrant.
-static enum eos po_address(void)	// now GotByte = illegal char
-{
-	SKIPSPACE();
-	if (GotByte == CHAR_SOB) {
-		typesystem_force_address_block();
-		return ENSURE_EOS;
-	}
-	typesystem_force_address_statement(TRUE);
-	return PARSE_REMAINDER;
+	return set_register_length(&cpu_xy_are_long, FALSE);
 }
 
 
@@ -731,7 +861,7 @@ static enum eos po_enum(void)	// now GotByte = illegal char
 
 	step.val.intval = 1;
 	ALU_defined_int(&step);
-Throw_serious_error("Not yet");	// FIXME
+throw_serious_error("Not yet");	// FIXME
 	return ENSURE_EOS;
 }
 #endif
@@ -743,14 +873,12 @@ static enum eos po_set(void)	// now GotByte = illegal char
 	scope_t	scope;
 	int	force_bit;
 
-	if (Input_read_scope_and_keyword(&scope) == 0)	// skips spaces before
+	if (input_read_scope_and_symbol_name(&scope))	// skips spaces before
 		return SKIP_REMAINDER;	// zero length
 
-	force_bit = Input_get_force_bit();	// skips spaces after
-	if (GotByte != '=') {
-		Throw_error(exception_syntax);
+	force_bit = parser_get_force_bit();	// skips spaces after
+	if (!parser_expect('='))
 		return SKIP_REMAINDER;
-	}
 
 	// TODO: in versions before 0.97, force bit handling was broken in both
 	// "!set" and "!for":
@@ -763,37 +891,8 @@ static enum eos po_set(void)	// now GotByte = illegal char
 }
 
 
-// set file name for symbol list
-static enum eos po_symbollist(void)
-{
-	// bugfix: first read filename, *then* check for first pass.
-	// if skipping right away, quoted colons might be misinterpreted as EOS
-	// FIXME - why not just fix the skipping code to handle quotes? :)
-	// "!to" has been fixed as well
-
-	// read filename to global dynamic buffer
-	// if no file name given, exit (complaining will have been done)
-	if (Input_read_filename(FALSE, NULL))
-		return SKIP_REMAINDER;
-
-	// only process this pseudo opcode in first pass
-	if (!FIRST_PASS)
-		return SKIP_REMAINDER;
-
-	// if symbol list file name already set, complain and exit
-	if (symbollist_filename) {
-		Throw_warning("Symbol list file name already chosen.");
-		return SKIP_REMAINDER;
-	}
-
-	// get malloc'd copy of filename
-	symbollist_filename = DynaBuf_get_copy(GlobalDynaBuf);
-	// ensure there's no garbage at end of line
-	return ENSURE_EOS;
-}
-
-
 // switch to new zone ("!zone" or "!zn"). has to be re-entrant.
+// (allows for block, so must be reentrant)
 static enum eos po_zone(void)
 {
 	struct section	entry_values;	// buffer for outer zone
@@ -810,14 +909,14 @@ static enum eos po_zone(void)
 	if (BYTE_CONTINUES_KEYWORD(GotByte)) {
 		// because we know of one character for sure,
 		// there's no need to check the return value.
-		Input_read_keyword();
-		new_title = DynaBuf_get_copy(GlobalDynaBuf);
+		parser_read_keyword();
+		new_title = dynabuf_get_copy(GlobalDynaBuf);
 		allocated = TRUE;
 	}
 	// setup new section
 	// section type is "subzone", just in case a block follows
 	section_new(section_now, "Subzone", new_title, allocated);
-	if (Parse_optional_block()) {
+	if (parse_optional_block()) {
 		// block has been parsed, so it was a SUBzone.
 		section_finalize(section_now);	// end inner zone
 		*section_now = entry_values;	// restore entry values
@@ -832,10 +931,11 @@ static enum eos po_zone(void)
 // "!subzone" or "!sz" pseudo opcode (now obsolete)
 static enum eos po_subzone(void)
 {
-	if (config.wanted_version >= VER_DISABLED_OBSOLETE_STUFF)
-		Throw_error("\"!subzone {}\" is obsolete; use \"!zone {}\" instead.");
-	else
-		Throw_first_pass_warning("\"!subzone {}\" is deprecated; use \"!zone {}\" instead.");
+	if (config.dialect >= V0_94_8__DISABLED_OBSOLETE) {
+		throw_error("\"!subzone {}\" is obsolete; use \"!zone {}\" instead.");
+	} else {
+		throw_finalpass_warning("\"!subzone {}\" is deprecated; use \"!zone {}\" instead.");
+	}
 	// call "!zone" instead
 	return po_zone();
 }
@@ -843,43 +943,27 @@ static enum eos po_subzone(void)
 // include source file ("!source" or "!src"). has to be re-entrant.
 static enum eos po_source(void)	// now GotByte = illegal char
 {
-	boolean		uses_lib;
+	struct filespecflags	flags;
 	FILE		*stream;
-	char		local_gotbyte;
-	struct input	new_input,
-			*outer_input;
+	const char	*eternal_plat_filename;
+
+	// read file name and convert from UNIX style to platform style
+	if (input_read_input_filename(&flags))
+		return SKIP_REMAINDER;	// if missing or unterminated, give up
 
 	// enter new nesting level
 	// quit program if recursion too deep
-	if (--source_recursions_left < 0)
-		Throw_serious_error("Too deeply nested. Recursive \"!source\"?");
-	// read file name. quit function on error
-	if (Input_read_filename(TRUE, &uses_lib))
-		return SKIP_REMAINDER;
-
+	if (--sanity.source_recursions_left < 0)
+		throw_serious_error("Too deeply nested. Recursive \"!source\"?");
 	// if file could be opened, parse it. otherwise, complain
-	stream = includepaths_open_ro(uses_lib);
+	stream = includepaths_open_ro(&flags);
 	if (stream) {
-// FIXME - just use safe_malloc and never free! this also saves us making a copy if defining macros down the road...
-#ifdef __GNUC__
-		char	filename[GlobalDynaBuf->size];	// GCC can do this
-#else
-		char	*filename	= safe_malloc(GlobalDynaBuf->size);	// VS can not
-#endif
-
-		strcpy(filename, GLOBALDYNABUF_CURRENT);
-		outer_input = Input_now;	// remember old input
-		local_gotbyte = GotByte;	// CAUTION - ugly kluge
-		Input_now = &new_input;	// activate new input
-		flow_parse_and_close_file(stream, filename);
-		Input_now = outer_input;	// restore previous input
-		GotByte = local_gotbyte;	// CAUTION - ugly kluge
-#ifndef __GNUC__
-		free(filename);	// GCC auto-frees
-#endif
+		eternal_plat_filename = dynabuf_get_copy(GlobalDynaBuf);
+		parse_source_code_file(stream, eternal_plat_filename);
+		fclose(stream);
 	}
 	// leave nesting level
-	++source_recursions_left;
+	++sanity.source_recursions_left;
 	return ENSURE_EOS;
 }
 
@@ -893,7 +977,7 @@ enum ifmode {
 // has to be re-entrant
 static enum eos ifelse(enum ifmode mode)
 {
-	boolean		nothing_done	= TRUE;	// once a block gets executed, this becomes FALSE, so all others will be skipped even if condition met
+	boolean		skip_the_rest	= FALSE;	// once a block gets executed, this becomes TRUE, so all others will be skipped even if condition met
 	boolean		condition_met;	// condition result for next block
 	struct number	ifresult;
 
@@ -901,10 +985,19 @@ static enum eos ifelse(enum ifmode mode)
 		// check condition according to mode
 		switch (mode) {
 		case IFMODE_IF:
-			ALU_defined_int(&ifresult);
-			condition_met = !!ifresult.val.intval;
+			if (skip_the_rest) {
+				// parsing the condition might have side effects
+				// we do not want, so just skip it:
+				input_read_statement(CHAR_SOB);
+				//condition_met = does not matter because of "skip_the_rest"
+			} else {
+				// we need to parse the condition, and we need a
+				// defined result to know how to go on:
+				ALU_defined_int(&ifresult);
+				condition_met = !!ifresult.val.intval;
+			}
 			if (GotByte != CHAR_SOB)
-				Throw_serious_error(exception_no_left_brace);
+				throw_serious_error(exception_no_left_brace);
 			break;
 		case IFMODE_IFDEF:
 			condition_met = check_ifdef_condition();
@@ -916,24 +1009,24 @@ static enum eos ifelse(enum ifmode mode)
 			condition_met = TRUE;
 			break;
 		default:
-			Bug_found("IllegalIfMode", mode);
+			BUG("IllegalIfMode", mode);
 			condition_met = TRUE;	// inhibit compiler warning ;)
 		}
 		SKIPSPACE();
 		// execute this block?
-		if (condition_met && nothing_done) {
-			nothing_done = FALSE;	// all further ones will be skipped, even if conditions meet
+		if (condition_met && !skip_the_rest) {
+			skip_the_rest = TRUE;	// we execute this block, so skip all others
 			if (GotByte == CHAR_SOB) {
-		                Parse_until_eob_or_eof();	// parse block
+		                parse_until_eob_or_eof();	// parse block
         		        // if block isn't correctly terminated, complain and exit
                 		if (GotByte != CHAR_EOB)
-                		        Throw_serious_error(exception_no_right_brace);
+                		        throw_serious_error(exception_no_right_brace);
 			} else {
 				return PARSE_REMAINDER;	// parse line (only for ifdef/ifndef)
 			}
 		} else {
 			if (GotByte == CHAR_SOB) {
-				Input_skip_or_store_block(FALSE);	// skip block
+				input_block_skip();	// skip block
 			} else {
 				return SKIP_REMAINDER;	// skip line (only for ifdef/ifndef)
 			}
@@ -944,7 +1037,7 @@ static enum eos ifelse(enum ifmode mode)
 		if (mode == IFMODE_ELSE) {
 			// we could just return ENSURE_EOS, but checking here allows for better error message
 			if (GotByte != CHAR_EOS)
-				Throw_error("Expected end-of-statement after ELSE block.");
+				throw_error("Expected end-of-statement after ELSE block.");
 			return SKIP_REMAINDER;	// normal exit after ELSE {...}
 		}
 
@@ -952,13 +1045,19 @@ static enum eos ifelse(enum ifmode mode)
 		if (GotByte == CHAR_EOS)
 			return AT_EOS_ANYWAY;	// normal exit if there is no ELSE {...} block
 
-		// read keyword (expected to be "else")
-		if (Input_read_and_lower_keyword() == 0)
-			return SKIP_REMAINDER;	// "missing string error" -> ignore rest of line
+		// read keyword (expected to be "elif" or "else")
+		if (parser_read_and_lower_keyword() == 0)
+			return SKIP_REMAINDER;	// "Expected keyword" error -> ignore rest of line
+
+		// if it's "elif", we can just do another iteration:
+		if (strcmp(GlobalDynaBuf->buffer, "elif") == 0) {
+			mode = IFMODE_IF;
+			continue;
+		}
 
 		// make sure it's "else"
 		if (strcmp(GlobalDynaBuf->buffer, "else")) {
-			Throw_error("Expected ELSE or end-of-statement.");
+			throw_error("Expected end-of-statement or ELIF/ELSE keyword after '}'.");
 			return SKIP_REMAINDER;	// an error has been reported, so ignore rest of line
 		}
 		// anything more?
@@ -969,9 +1068,9 @@ static enum eos ifelse(enum ifmode mode)
 			continue;
 		}
 
-		// read keyword (expected to be if/ifdef/ifndef)
-		if (Input_read_and_lower_keyword() == 0)
-			return SKIP_REMAINDER;	// "missing string error" -> ignore rest of line
+		// read keyword after else (expected to be if/ifdef/ifndef)
+		if (parser_read_and_lower_keyword() == 0)
+			return SKIP_REMAINDER;	// "Expected keyword" error -> ignore rest of line
 
 		// which one is it?
 		if (strcmp(GlobalDynaBuf->buffer, "if") == 0) {
@@ -981,7 +1080,7 @@ static enum eos ifelse(enum ifmode mode)
 		} else if (strcmp(GlobalDynaBuf->buffer, "ifndef") == 0) {
 			mode = IFMODE_IFNDEF;
 		} else {
-			Throw_error("After ELSE, expected block or IF/IFDEF/IFNDEF.");
+			throw_error("Expected '{' or IF/IFDEF/IFNDEF keyword after ELSE keyword.");
 			return SKIP_REMAINDER;	// an error has been reported, so ignore rest of line
 		}
 	}
@@ -1019,28 +1118,32 @@ static enum eos po_for(void)	// now GotByte = illegal char
 	struct for_loop	loop;
 	struct number	intresult;
 
-	if (Input_read_scope_and_keyword(&scope) == 0)	// skips spaces before
+	if (input_read_scope_and_symbol_name(&scope))	// skips spaces before
 		return SKIP_REMAINDER;	// zero length
 
 	// now GotByte = illegal char
-	force_bit = Input_get_force_bit();	// skips spaces after
+	force_bit = parser_get_force_bit();	// skips spaces after
 	loop.symbol = symbol_find(scope);	// if not number, error will be reported on first assignment
-	if (Input_accept_comma()) {
+	if (parser_accept_comma()) {
 		// counter syntax (old or new)
 		loop.u.counter.force_bit = force_bit;
 		ALU_defined_int(&intresult);	// read first argument
 		loop.u.counter.addr_refs = intresult.addr_refs;
-		if (Input_accept_comma()) {
+		if (parser_accept_comma()) {
 			// new counter syntax
 			loop.algorithm = FORALGO_NEWCOUNT;
-			if (config.wanted_version < VER_NEWFORSYNTAX)
-				Throw_first_pass_warning("Found new \"!for\" syntax.");
+			if (config.dialect >= V0_94_12__NEW_FOR_SYNTAX) {
+				// version 0.94.12 introduced the new syntax,
+			} else {
+				// so if user chooses an older dialect, warn about the new syntax:
+				throw_finalpass_warning("Found new \"!for\" syntax.");
+			}
 			loop.u.counter.first = intresult.val.intval;	// use first argument
 			ALU_defined_int(&intresult);	// read second argument
 			// compare addr_ref counts and complain if not equal!
 			if (config.warn_on_type_mismatch
 			&& (intresult.addr_refs != loop.u.counter.addr_refs)) {
-				Throw_first_pass_warning("Wrong type for loop's END value - must match type of START value.");
+				throw_finalpass_warning("Wrong type for loop's END value - must match type of START value.");
 			}
 			// setup direction and total
 			if (loop.u.counter.first <= intresult.val.intval) {
@@ -1055,10 +1158,13 @@ static enum eos po_for(void)	// now GotByte = illegal char
 		} else {
 			// old counter syntax
 			loop.algorithm = FORALGO_OLDCOUNT;
-			if (config.wanted_version >= VER_NEWFORSYNTAX)
-				Throw_first_pass_warning("Found old \"!for\" syntax.");
-			if (intresult.val.intval < 0)
-				Throw_serious_error("Loop count is negative.");
+			if (config.dialect >= V0_94_12__NEW_FOR_SYNTAX) {
+				// version 0.94.12 introduced the new syntax, so warn when encountering the old one:
+				throw_finalpass_warning("Found old \"!for\" syntax.");
+			}
+			if (intresult.val.intval < 0) {
+				throw_serious_error("Loop count is negative.");
+			}
 			// count up
 			loop.u.counter.first = 1;
 			loop.iterations_left = intresult.val.intval;	// use given argument
@@ -1069,47 +1175,42 @@ static enum eos po_for(void)	// now GotByte = illegal char
 		loop.algorithm = FORALGO_ITERATE;
 		// check for "in" keyword
 		if ((GotByte != 'i') && (GotByte != 'I')) {
-			Throw_error(exception_syntax);
+			throw_error(exception_want_IN_or_comma);
 			return SKIP_REMAINDER;	// FIXME - this ignores '{' and will then complain about '}'
 		}
 /* checking for the first character explicitly here looks dumb, but actually
-solves a purpose: we're here because the check for comma failed, but maybe that
+serves a purpose: we're here because the check for comma failed, but maybe that
 was just a typo. if the current byte is '.' or '-' or whatever, then trying to
-read a keyword will result in "No string given" - which is confusing for the
-user if they did not even want to put a string there.
+read a keyword will result in "Expected keyword" - which is confusing for the
+user if they did not even want to put a keyword there.
 so if the current byte is not the start of "in" we just throw a syntax error.
-knowing there is an "i" also makes sure that Input_read_and_lower_keyword()
+knowing there is an "i" also makes sure that parser_read_and_lower_keyword()
 does not fail. */
-		Input_read_and_lower_keyword();
+		parser_read_and_lower_keyword();
 		if (strcmp(GlobalDynaBuf->buffer, "in") != 0) {
-			Throw_error("Loop var must be followed by either \"in\" keyword or comma.");
+			throw_error(exception_want_IN_or_comma);
 			return SKIP_REMAINDER;	// FIXME - this ignores '{' and will then complain about '}'
 		}
 		if (force_bit) {
-			Throw_error("Force bits can only be given to counters, not when iterating over string/list contents.");
+			throw_error("Force bits can only be given to counters, not when iterating over string/list contents.");
 			return SKIP_REMAINDER;	// FIXME - this ignores '{' and will then complain about '}'
 		}
 		ALU_any_result(&loop.u.iter.obj);	// get iterable
 		loop.iterations_left = loop.u.iter.obj.type->length(&loop.u.iter.obj);
 		if (loop.iterations_left < 0) {
-			Throw_error("Given object is not iterable.");
+			throw_error("Given object is not iterable.");
 			return SKIP_REMAINDER;	// FIXME - this ignores '{' and will then complain about '}'
 		}
 	}
 
 	if (GotByte != CHAR_SOB)
-		Throw_serious_error(exception_no_left_brace);
+		throw_serious_error(exception_no_left_brace);
 
-	// remember line number of loop pseudo opcode
-	loop.block.start = Input_now->line_number;
-	// read loop body into DynaBuf and get copy
-	loop.block.body = Input_skip_or_store_block(TRUE);	// changes line number!
-
+	input_block_getcopy(&loop.block);	// "body" must be freed afterward...
 	flow_forloop(&loop);
-	// free memory
-	free(loop.block.body);
+	free(loop.block.body);	// ...so free it 
 
-	// GotByte of OuterInput would be '}' (if it would still exist)
+	// GotByte is '}'
 	GetByte();	// fetch next byte
 	return ENSURE_EOS;
 }
@@ -1124,12 +1225,9 @@ static enum eos po_do(void)	// now GotByte = illegal char
 	SKIPSPACE();
 	flow_store_doloop_condition(&loop.head_cond, CHAR_SOB);	// must be freed!
 	if (GotByte != CHAR_SOB)
-		Throw_serious_error(exception_no_left_brace);
-	// remember line number of loop body,
-	// then read block and get copy
-	loop.block.start = Input_now->line_number;
-	// reading block changes line number!
-	loop.block.body = Input_skip_or_store_block(TRUE);	// must be freed!
+		throw_serious_error(exception_no_left_brace);
+
+	input_block_getcopy(&loop.block);	// "body" must be freed!
 	// now GotByte = '}'
 	NEXTANDSKIPSPACE();	// now GotByte = first non-blank char after block
 	// read tail condition to buffer
@@ -1137,9 +1235,9 @@ static enum eos po_do(void)	// now GotByte = illegal char
 	// now GotByte = CHAR_EOS
 	flow_do_while(&loop);
 	// free memory
-	free(loop.head_cond.body);
+	free(loop.tail_cond.block.body);
 	free(loop.block.body);
-	free(loop.tail_cond.body);
+	free(loop.head_cond.block.body);
 	return AT_EOS_ANYWAY;
 }
 
@@ -1151,22 +1249,18 @@ static enum eos po_while(void)	// now GotByte = illegal char
 
 	// read condition to buffer
 	SKIPSPACE();
-	flow_store_while_condition(&loop.head_cond);	// must be freed!
+	flow_store_while_condition(&loop.head_cond);	// "body" must be freed!
 	if (GotByte != CHAR_SOB)
-		Throw_serious_error(exception_no_left_brace);
-	// remember line number of loop body,
-	// then read block and get copy
-	loop.block.start = Input_now->line_number;
-	// reading block changes line number!
-	loop.block.body = Input_skip_or_store_block(TRUE);	// must be freed!
+		throw_serious_error(exception_no_left_brace);
+	// read block
+	input_block_getcopy(&loop.block);	// "body" must be freed!
 	// clear tail condition
-	loop.tail_cond.body = NULL;
+	loop.tail_cond.block.body = NULL;
 	flow_do_while(&loop);
 	// free memory
-	free(loop.head_cond.body);
 	free(loop.block.body);
-	// GotByte of OuterInput would be '}' (if it would still exist)
-	GetByte();	// fetch next byte
+	free(loop.head_cond.block.body);
+	GetByte();	// fetch next byte (last byte read was '}')
 	return ENSURE_EOS;
 }
 
@@ -1175,8 +1269,8 @@ static enum eos po_while(void)	// now GotByte = illegal char
 static enum eos po_macro(void)	// now GotByte = illegal char
 {
 	// in first pass, parse. In all other passes, skip.
-	if (FIRST_PASS) {
-		Macro_parse_definition();	// now GotByte = '}'
+	if (pass.number == 1) {
+		macro_parse_definition();	// now GotByte = '}'
 	} else {
 		// skip until CHAR_SOB ('{') is found.
 		// no need to check for end-of-statement, because such an
@@ -1184,7 +1278,7 @@ static enum eos po_macro(void)	// now GotByte = illegal char
 		// for the same reason, there is no need to check for quotes.
 		while (GotByte != CHAR_SOB)
 			GetByte();
-		Input_skip_or_store_block(FALSE);	// now GotByte = '}'
+		input_block_skip();	// now GotByte = '}'
 	}
 	GetByte();	// Proceed with next character
 	return ENSURE_EOS;
@@ -1202,14 +1296,14 @@ static enum eos tracewatch(boolean enter_monitor)
 	struct number	pc;
 	bits		flags	= 0;
 
-	vcpu_read_pc(&pc);
+	programcounter_read(&pc);
 	SKIPSPACE();
 	// check for flags
 	if (GotByte != CHAR_EOS) {
 		do {
 			// parse flag. if no keyword given, give up
-			if (Input_read_and_lower_keyword() == 0)
-				return SKIP_REMAINDER;	// fail (error has been reported)
+			if (parser_read_and_lower_keyword() == 0)
+				return SKIP_REMAINDER;	// "Expected keyword" error has already been thrown
 
 			if (strcmp(GlobalDynaBuf->buffer, "load") == 0) {
 				flags |= TRACEWATCH_LOAD;
@@ -1218,10 +1312,10 @@ static enum eos tracewatch(boolean enter_monitor)
 			} else if (strcmp(GlobalDynaBuf->buffer, "exec") == 0) {
 				flags |= TRACEWATCH_EXEC;
 			} else {
-				Throw_error("Unknown flag (known are: load, store, exec).");	// FIXME - add to docs!
+				throw_error("Unknown flag (known are: load, store, exec).");	// FIXME - add to docs!
 				return SKIP_REMAINDER;
 			}
-		} while (Input_accept_comma());
+		} while (parser_accept_comma());
 	}
 	// shortcut: no flags at all -> set all flags!
 	if (!flags)
@@ -1245,90 +1339,183 @@ static enum eos po_watch(void)
 }
 */
 
-// constants
-#define USERMSG_INITIALSIZE	80
-
-
-// variables
-static	STRUCT_DYNABUF_REF(user_message, USERMSG_INITIALSIZE);	// for !warn/error/serious
-
-
-// helper function to show user-defined messages
-static enum eos throw_string(const char prefix[], void (*fn)(const char *))
+// force explicit symbol definitions to set "address" flag.
+// if this is used without a block, it is only a prefix for a single statement.
+// has to be re-entrant.
+static enum eos po_address(void)	// now GotByte = illegal char
 {
-	struct object	object;
+	boolean	buf;
 
-	DYNABUF_CLEAR(user_message);
-	DynaBuf_add_string(user_message, prefix);
-	do {
-		if ((GotByte == '"') && (config.wanted_version < VER_BACKSLASHESCAPING)) {
-			DYNABUF_CLEAR(GlobalDynaBuf);
-			if (Input_quoted_to_dynabuf('"'))
-				return SKIP_REMAINDER;	// unterminated or escaping error
+	buf = parser_change_addr_block_flag(TRUE);
+	if (parse_optional_block()) {
+		// when used with a block, is used throughout the block
+		parser_change_addr_block_flag(buf);	// restore after block
+		return ENSURE_EOS;
+	} else {
+		// without a block, it's only a "prefix" for the current statement
+		parser_change_addr_block_flag(buf);	// there was no block, so restore...
+		parser_set_addr_prefix();	// ...and set flag...
+		return PARSE_REMAINDER;	// ...just for this statement.
+	}
+}
 
-			// eat closing quote
-			GetByte();
-			// now convert to unescaped version
-			if (Input_unescape_dynabuf(0))
-				return SKIP_REMAINDER;	// escaping error
 
-			DynaBuf_append(GlobalDynaBuf, '\0');	// terminate string
-			DynaBuf_add_string(user_message, GLOBALDYNABUF_CURRENT);	// add to message
-		} else {
-			// parse value
-			ALU_any_result(&object);
-			object.type->print(&object, user_message);
-		}
-	} while (Input_accept_comma());
-	DynaBuf_append(user_message, '\0');
-	fn(user_message->buffer);
+// disable warnings.
+// if this is used without a block, it is only a prefix for a single statement.
+// has to be re-entrant.
+static enum eos po_nowarn(void)	// now GotByte = illegal char
+{
+	boolean	buf;
+
+	buf = parser_change_nowarn_block_flag(TRUE);
+	if (parse_optional_block()) {
+		// when used with a block, is used throughout the block
+		parser_change_nowarn_block_flag(buf);	// restore after block
+		return ENSURE_EOS;
+	} else {
+		// without a block, it's only a "prefix" for the current statement
+		parser_change_nowarn_block_flag(buf);	// there was no block, so restore...
+		parser_set_nowarn_prefix();	// ...and set flag...
+		return PARSE_REMAINDER;	// ...just for this statement.
+	}
+}
+
+
+// exit innermost loop
+static enum eos po_break(void)	// now GotByte = illegal char
+{
+	boolean	allowed;
+
+	allowed = parser_allow_break_cont(FALSE);
+	parser_allow_break_cont(allowed);
+	if (allowed)
+		parser_set_shortcut(SHORTCUT_BREAK);
+	else
+		throw_error("!break not within a loop.");
+	return ENSURE_EOS;
+}
+
+// end innermost loop iteration
+static enum eos po_continue(void)	// now GotByte = illegal char
+{
+	boolean	allowed;
+
+	allowed = parser_allow_break_cont(FALSE);
+	parser_allow_break_cont(allowed);
+	if (allowed)
+		parser_set_shortcut(SHORTCUT_CONT);
+	else
+		throw_error("!continue not within a loop.");
+	return ENSURE_EOS;
+}
+
+// return from innermost macro
+static enum eos po_return(void)	// now GotByte = illegal char
+{
+	boolean	allowed;
+
+	// if ACME ever gets real functions, this is the place to parse the
+	// return value and store it via some innermost_function->result
+	// pointer.
+	allowed = parser_allow_return(FALSE);
+	parser_allow_return(allowed);
+	if (allowed)
+		parser_set_shortcut(SHORTCUT_RETURN);
+	else
+		throw_error("!return not within a macro.");
 	return ENSURE_EOS;
 }
 
 
-#if 0
-// show debug data given in source code
+// variables
+static	STRUCT_DYNABUF_REF(user_message, 80);	// for !debug/info/warn/error/serious
+
+
+// helper function to show user-defined messages
+static enum eos throw_src_string(enum debuglevel level, const char prefix[])
+{
+	struct object	object;
+
+	dynabuf_clear(user_message);
+	dynabuf_add_string(user_message, prefix);
+	// algo depends on dialect:
+	if (config.dialect >= V0_97__BACKSLASH_ESCAPING) {
+		// since v0.97 the expression parser supports strings, so we pass all args to it:
+		do {
+			ALU_any_result(&object);
+			object.type->print(&object, user_message);
+		} while (parser_accept_comma());
+	} else {
+		// in older versions the expression parser complained about
+		// strings longer than one character, so we assumed everything
+		// starting with a doublequote is a string literal and handled
+		// those separately:
+		do {
+			if (GotByte == '"') {
+				// string literal
+				if (input_read_string_literal('"'))
+					break;	// unterminated
+				dynabuf_append(GlobalDynaBuf, '\0');	// terminate string
+				dynabuf_add_string(user_message, GLOBALDYNABUF_CURRENT);	// add to message
+			} else {
+				// everything else is passed to expression parser:
+				ALU_any_result(&object);
+				object.type->print(&object, user_message);
+			}
+		} while (parser_accept_comma());
+	}
+	dynabuf_append(user_message, '\0');
+	throw_message(level, user_message->buffer, NULL);
+	return ENSURE_EOS;
+}
+
+// show debug data as given in source code
 static enum eos po_debug(void)
 {
-	// FIXME - make debug output depend on some cli switch
-	return throw_string("!debug: ", throw_message);
+	struct number	debuglevel;
+
+	ALU_defined_int(&debuglevel);
+	if (!parser_expect(','))
+		return SKIP_REMAINDER;
+
+	// drop this one?
+	if (debuglevel.val.intval > config.debuglevel)
+		return SKIP_REMAINDER;
+
+	return throw_src_string(debuglevel.val.intval, "!debug: ");
 }
-// show info given in source code
+
+// show info as given in source code
 static enum eos po_info(void)
 {
-	return throw_string("!info: ", throw_message);
+	return throw_src_string(DEBUGLEVEL_INFO, "!info: ");
 }
-#endif
-
 
 // throw warning as given in source code
 static enum eos po_warn(void)
 {
-	return throw_string("!warn: ", Throw_warning);
-
+	return throw_src_string(DEBUGLEVEL_WARNING, "!warn: ");
 }
-
 
 // throw error as given in source code
 static enum eos po_error(void)
 {
-	return throw_string("!error: ", Throw_error);
+	return throw_src_string(DEBUGLEVEL_ERROR, "!error: ");
 }
-
 
 // throw serious error as given in source code
 static enum eos po_serious(void)
 {
-	return throw_string("!serious: ", Throw_serious_error);
+	return throw_src_string(DEBUGLEVEL_SERIOUS, "!serious: ");
 }
+
 
 
 // end of source file ("!endoffile" or "!eof")
 static enum eos po_endoffile(void)
 {
-	// well, it doesn't end right here and now, but at end-of-line! :-)
-	Input_ensure_EOS();
-	Input_now->state = INPUTSTATE_EOF;
+	parser_ensure_EOS();	// make sure there are no args
+	input_force_eof();	// fake end of file
 	return AT_EOS_ANYWAY;
 }
 
@@ -1336,9 +1523,15 @@ static enum eos po_endoffile(void)
 static struct ronode	pseudo_opcode_tree[]	= {
 	PREDEF_START,
 	PREDEFNODE("initmem",		po_initmem),
-	PREDEFNODE("xor",		po_xor),
 	PREDEFNODE("to",		po_to),
+	PREDEFNODE("sl",		po_symbollist),
+	PREDEFNODE("symbollist",	po_symbollist),
+	PREDEFNODE("outfilestart",	po_outfilestart),
+	PREDEFNODE("outfilestop",	po_outfilelimit),
+	PREDEFNODE("outfilelimit",	po_outfilelimit),
+	PREDEFNODE("xor",		po_xor),
 	PREDEFNODE("by",		po_byte),
+	PREDEFNODE("byt",		po_byte),
 	PREDEFNODE("byte",		po_byte),
 	PREDEFNODE("8",			po_byte),
 	PREDEFNODE("08",		po_byte),	// legacy alias, don't ask...
@@ -1359,6 +1552,7 @@ static struct ronode	pseudo_opcode_tree[]	= {
 	PREDEFNODE("ct",		po_convtab),
 	PREDEFNODE("convtab",		po_convtab),
 	PREDEFNODE("tx",		po_text),
+	PREDEFNODE("txt",		po_text),
 	PREDEFNODE("text",		po_text),
 	PREDEFNODE("raw",		po_raw),
 	PREDEFNODE("pet",		po_pet),
@@ -1377,12 +1571,8 @@ static struct ronode	pseudo_opcode_tree[]	= {
 	PREDEFNODE("as",		po_as),
 	PREDEFNODE("rl",		po_rl),
 	PREDEFNODE("rs",		po_rs),
-	PREDEFNODE("addr",		po_address),
-	PREDEFNODE("address",		po_address),
 //	PREDEFNODE("enum",		po_enum),
 	PREDEFNODE("set",		po_set),
-	PREDEFNODE("sl",		po_symbollist),
-	PREDEFNODE("symbollist",	po_symbollist),
 	PREDEFNODE("zn",		po_zone),
 	PREDEFNODE("zone",		po_zone),
 	PREDEFNODE("sz",		po_subzone),	// obsolete
@@ -1398,8 +1588,14 @@ static struct ronode	pseudo_opcode_tree[]	= {
 	PREDEFNODE("macro",		po_macro),
 /*	PREDEFNODE("trace",		po_trace),
 	PREDEFNODE("watch",		po_watch),	*/
-//	PREDEFNODE("debug",		po_debug),
-//	PREDEFNODE("info",		po_info),
+	PREDEFNODE("addr",		po_address),
+	PREDEFNODE("address",		po_address),
+	PREDEFNODE("nowarn",		po_nowarn),
+	PREDEFNODE("break",		po_break),
+	PREDEFNODE("continue",		po_continue),
+	PREDEFNODE("return",		po_return),
+	PREDEFNODE("debug",		po_debug),
+	PREDEFNODE("info",		po_info),
 	PREDEFNODE("warn",		po_warn),
 	PREDEFNODE("error",		po_error),
 	PREDEFNODE("serious",		po_serious),
@@ -1410,7 +1606,7 @@ static struct ronode	pseudo_opcode_tree[]	= {
 
 
 // parse a pseudo opcode. has to be re-entrant.
-void pseudoopcode_parse(void)	// now GotByte = "!"
+void pseudoopcode_parse(void)	// now GotByte = '!' (or '.' in case of --fullstop)
 {
 	void		*node_body;
 	enum eos	(*fn)(void),
@@ -1418,22 +1614,102 @@ void pseudoopcode_parse(void)	// now GotByte = "!"
 
 	GetByte();	// read next byte
 	// on missing keyword, return (complaining will have been done)
-	if (Input_read_and_lower_keyword()) {
+	if (parser_read_and_lower_keyword()) {
 		// search for tree item
-		if ((Tree_easy_scan(pseudo_opcode_tree, &node_body, GlobalDynaBuf))
+		if ((tree_easy_scan(pseudo_opcode_tree, &node_body, GlobalDynaBuf))
 		&& node_body) {
 			fn = (enum eos (*)(void)) node_body;
 			SKIPSPACE();
 			// call function
 			then = fn();
 		} else {
-			Throw_error(exception_unknown_pseudo_opcode);
+			throw_error("Unknown pseudo opcode.");
 		}
 	}
 	if (then == SKIP_REMAINDER)
-		Input_skip_remainder();
+		parser_skip_remainder();
 	else if (then == ENSURE_EOS)
-		Input_ensure_EOS();
+		parser_ensure_EOS();
 	// the other two possibilities (PARSE_REMAINDER and AT_EOS_ANYWAY)
 	// will lead to the remainder of the line being parsed by the mainloop.
+}
+
+
+// this is not really a pseudo opcode, but similar enough to be put here:
+// called when "*= EXPRESSION" is parsed, to set the program counter
+void notreallypo_setpc(void)	// GotByte is '*'
+{
+	bits		segment_flags	= 0;
+	boolean		do_outfilestart	= FALSE;
+	struct number	intresult;
+
+	// next non-space must be '='
+	NEXTANDSKIPSPACE();
+	if (!parser_expect('='))
+		goto fail;
+
+	ALU_defined_int(&intresult);	// read new address
+	// check for modifiers
+	while (parser_accept_comma()) {
+		// parse modifier. if no keyword given, give up
+		if (parser_read_and_lower_keyword() == 0)
+			goto fail;
+
+		if (strcmp(GlobalDynaBuf->buffer, "overlay") == 0) {
+			segment_flags |= SEGMENT_FLAG_OVERLAY;
+		} else if (strcmp(GlobalDynaBuf->buffer, "invisible") == 0) {
+			segment_flags |= SEGMENT_FLAG_INVISIBLE;
+		} else if (strcmp(GlobalDynaBuf->buffer, "outfilestart") == 0) {
+			do_outfilestart	= TRUE;
+/*TODO		} else if (strcmp(GlobalDynaBuf->buffer, "limit") == 0) {
+			skip '='
+			read memory limit
+		} else if (strcmp(GlobalDynaBuf->buffer, "stay" or "same" or something like that) == 0) {
+			mutually exclusive with all other arguments!
+			this would mean to keep all previous segment data,
+			so it could be used with "*=*-5" or "*=*+3"
+		} else if (strcmp(GlobalDynaBuf->buffer, "name") == 0) {
+			skip '='
+			read segment name (quoted string!)	*/
+		} else {
+			throw_error("Unknown \"*=\" segment modifier.");
+			goto fail;
+		}
+	}
+
+	// before actually setting pc,
+	// support stupidly bad, old, ancient, deprecated, obsolete behaviour:
+	if (pseudopc_isactive()) {
+		if (config.dialect >= V0_94_8__DISABLED_OBSOLETE) {
+			// current behaviour:
+			// setting pc does not disable pseudopc
+		} else if (config.dialect >= V0_93__SHORTER_SETPC_WARNING) {
+			throw_warning("Offset assembly still active at end of segment.");
+			end_all_pseudopc();	// warning did not say it would
+			// disable pseudopc, but still did. nevertheless, there
+			// is something different to older versions: when the
+			// closing '}' or !realpc is encountered, _really_ weird
+			// stuff happens! i see no reason to try to mimic that.
+		} else {
+			// prior to 0.93, setting pc disabled pseudopc with a warning:
+			throw_warning("Offset assembly still active at end of segment. Switched it off.");
+			end_all_pseudopc();
+		}
+	}
+
+	if (intresult.val.intval < 0) {
+		throw_error("Program counter cannot be negative.");
+		intresult.val.intval = cpu_current_type->dummy_pc;
+	}
+	programcounter_set(intresult.val.intval, segment_flags);
+
+	// if wanted, perform "!outfilestart":
+	if (do_outfilestart)
+		po_outfilestart();
+
+	parser_ensure_EOS();
+	return;
+
+fail:
+	parser_skip_remainder();
 }

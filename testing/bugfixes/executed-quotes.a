@@ -1,0 +1,7 @@
+;ACME 0.97
+	*=$1000
+	; the "skip code" function did not honor quotes, so stuff after ':' was
+	; executed.
+	!ifdef UNDEFINED !tx " dummy : older versions tried to parse this!"
+	!ifdef UNDEFINED !tx ' dummy : older versions tried to parse this!'
+	; fixing this supersedes two older fixes for "!to" and "!sl".

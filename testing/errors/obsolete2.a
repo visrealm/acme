@@ -1,0 +1,2 @@
+	*=$1000
+	!pseudopc $c000	; -> ""!pseudopc/!realpc" is obsolete; use "!pseudopc {}" instead."
